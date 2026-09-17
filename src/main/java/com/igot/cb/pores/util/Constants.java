@@ -6,6 +6,7 @@ package com.igot.cb.pores.util;
 public class Constants {
 
     public static final String KEYSPACE_SUNBIRD = "sunbird";
+    public static final String PATH_DELIMITER = "/";
     public static final String CORE_CONNECTIONS_PER_HOST_FOR_LOCAL = "coreConnectionsPerHostForLocal";
     public static final String CORE_CONNECTIONS_PER_HOST_FOR_REMOTE = "coreConnectionsPerHostForRemote";
     public static final String MAX_CONNECTIONS_PER_HOST_FOR_LOCAL = "maxConnectionsPerHostForLocal";
@@ -70,6 +71,7 @@ public class Constants {
     public static final String X_AUTH_TOKEN = "x-authenticated-user-token";
     public static final String INDEX_NAME = "community_entity_alias";
     public static final String ERROR = "ERROR";
+    public static final String ERROR_WHILE_PROCESSING = "error while processing";
     public static final String INVALID_DATA = "No data found";
     public static final String PAYLOAD_VALIDATION_FILE = "/payloadValidation/communityValidationData.json";
     public static final String USER_ID_DOESNT_EXIST = "User Id doesn't exist! Please supply a valid auth token";

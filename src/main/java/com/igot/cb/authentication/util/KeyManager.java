@@ -13,12 +13,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -38,7 +39,7 @@ public class KeyManager {
         String basePath = propertiesCache.getProperty(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH);
         try (Stream<Path> walk = Files.walk(Paths.get(basePath))) {
             List<String> result =
-                    walk.filter(Files::isRegularFile).map(Path::toString).collect(Collectors.toList());
+                    walk.filter(Files::isRegularFile).map(Path::toString).toList();
             result.forEach(file -> {
                 try {
                     Path path = Paths.get(file);
@@ -66,19 +67,23 @@ public class KeyManager {
      *
      * @param key The string representation of the public key
      * @return The loaded public key
-     * @throws Exception If there's an error during the loading process
+     * @throws PublicKeyLoadException If there's an error during the loading process
      */
-    public static PublicKey loadPublicKey(String key) throws Exception {
+    public static PublicKey loadPublicKey(String key) throws PublicKeyLoadException {
         String publicKey = new String(key.getBytes(), StandardCharsets.UTF_8);
         // Remove header and footer from the key string
         publicKey = publicKey.replaceAll("(-+BEGIN PUBLIC KEY-+)", "");
         publicKey = publicKey.replaceAll("(-+END PUBLIC KEY-+)", "");
         publicKey = publicKey.replaceAll("[\\r\\n]+", "");
         // Decode the key string from Base64
-        byte[] keyBytes = Base64Util.decode(publicKey.getBytes("UTF-8"), Base64Util.DEFAULT);
+        byte[] keyBytes = Base64Util.decode(publicKey.getBytes(StandardCharsets.UTF_8), Base64Util.DEFAULT);
         // Convert the key bytes to a PublicKey object
         X509EncodedKeySpec x509publicKey = new X509EncodedKeySpec(keyBytes);
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        return kf.generatePublic(x509publicKey);
+        try {
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            return kf.generatePublic(x509publicKey);
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new PublicKeyLoadException("Failed to load public key", e);
+        }
     }
 }

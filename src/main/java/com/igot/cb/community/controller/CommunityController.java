@@ -18,8 +18,12 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/community/v1")
 public class CommunityController {
+    private final CommunityManagementService communityManagementService;
+
     @Autowired
-    private CommunityManagementService communityManagementService;
+    public CommunityController(CommunityManagementService communityManagementService) {
+        this.communityManagementService = communityManagementService;
+    }
 
     @PostMapping("/create")
     public ResponseEntity<ApiResponse> create(@RequestBody JsonNode communityDetails,

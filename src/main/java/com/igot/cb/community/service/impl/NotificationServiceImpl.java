@@ -4,26 +4,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.community.service.NotificationService;
 import com.igot.cb.pores.exceptions.CustomException;
-import com.igot.cb.pores.util.CbServerProperties;
-import com.igot.cb.pores.util.Config;
-import com.igot.cb.pores.util.Constants;
-import com.igot.cb.pores.util.NotificationAsyncRequest;
-import com.igot.cb.pores.util.OutboundRequestHandlerServiceImpl;
-import com.igot.cb.pores.util.Template;
+import com.igot.cb.pores.util.*;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
@@ -33,6 +16,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
+import java.io.StringWriter;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j

@@ -1,17 +1,14 @@
 package com.igot.cb.community.service.impl;
 
-import co.elastic.clients.elasticsearch._types.aggregations.Aggregation;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch._types.SortOptions;
 import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.aggregations.Aggregate;
+import co.elastic.clients.elasticsearch._types.aggregations.Aggregation;
+import co.elastic.clients.elasticsearch._types.aggregations.StringTermsAggregate;
+import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
-import org.elasticsearch.client.RequestOptions;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import co.elastic.clients.elasticsearch._types.aggregations.Aggregate;
-import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
-import co.elastic.clients.elasticsearch._types.aggregations.StringTermsAggregate;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -36,18 +33,9 @@ import com.igot.cb.pores.elasticsearch.service.EsUtilService;
 import com.igot.cb.pores.exceptions.CustomException;
 import com.igot.cb.pores.util.*;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.time.Instant;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import javax.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
-
 import org.elasticsearch.client.RequestOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,16 +45,24 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-
-
-import java.sql.Timestamp;
-import java.util.*;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 import org.sunbird.cloud.storage.BaseStorageService;
 import org.sunbird.cloud.storage.factory.StorageConfig;
 import org.sunbird.cloud.storage.factory.StorageServiceFactory;
 import scala.Option;
+
+import javax.annotation.PostConstruct;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.io.InputStream;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * @author mahesh.vakkund
@@ -75,38 +71,28 @@ import scala.Option;
 @Slf4j
 public class CommunityManagementServiceImpl implements CommunityManagementService {
 
-    @Autowired
-    private EsUtilService esUtilService;
-    @Autowired
-    private CacheService cacheService;
-    @Autowired
-    private ObjectMapper objectMapper;
-    @Autowired
-    private CbServerProperties cbServerProperties;
+    private static final String VALIDATION_FAILED_LOG = "Validation failed: {}";
+    private static final String RECORD_FROM_REDIS_CACHE_LOG = "Record coming from redis cache";
+    private static final String RECORD_FROM_POSTGRES_LOG = "Record coming from postgres db";
+    private static final String INVALID_ID_LOG = "Invalid Id: {}";
+    private static final String ERROR_JOINING_COMMUNITY_LOG = "Error while joining community:";
+    private static final String ERROR_SEARCHING_LOG = "Error occured while searching:";
+    private static final String FAILED_UPLOAD_FILE_LOG = "Failed to upload file. Exception: ";
 
-    @Autowired
-    private PayloadValidation payloadValidation;
-
-    @Autowired
-    private CommunityEngagementRepository communityEngagementRepository;
-
-    @Autowired
-    private AccessTokenValidator accessTokenValidator;
-
-    @Autowired
-    CassandraOperation cassandraOperation;
-
-    @Autowired
-    @Qualifier(Constants.SEARCH_RESULT_REDIS_TEMPLATE)
-    private RedisTemplate<String, SearchResult> redisTemplate;
-
-    @Autowired
-    private CommunityCategoryRepository categoryRepository;
+    private final EsUtilService esUtilService;
+    private final CacheService cacheService;
+    private final ObjectMapper objectMapper;
+    private final CbServerProperties cbServerProperties;
+    private final PayloadValidation payloadValidation;
+    private final CommunityEngagementRepository communityEngagementRepository;
+    private final AccessTokenValidator accessTokenValidator;
+    private final CassandraOperation cassandraOperation;
+    private final RedisTemplate<String, SearchResult> redisTemplate;
+    private final CommunityCategoryRepository categoryRepository;
 
     private Logger logger = LoggerFactory.getLogger(CommunityManagementServiceImpl.class);
 
-    @Autowired
-    private Producer producer;
+    private final Producer producer;
 
     @Value("${kafka.topic.community.user.count}")
     private String userCountUpdateTopic;
@@ -120,20 +106,42 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
     @Value("${community.index}")
     private String communityIndex;
 
-    @Autowired
-    @Qualifier(Constants.REDIS_OBJECT_TEMPLATE)
-    private RedisTemplate<String, Object> objectRedisTemplate;
-
     private BaseStorageService storageService = null;
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+    private final NotificationService notificationService;
+    private final FileProcessService fileProcessService;
 
     @Autowired
-    private NotificationService notificationService;
-
-    @Autowired
-    private FileProcessService fileProcessService;
+    public CommunityManagementServiceImpl(EsUtilService esUtilService,
+            CacheService cacheService,
+            ObjectMapper objectMapper,
+            CbServerProperties cbServerProperties,
+            PayloadValidation payloadValidation,
+            CommunityEngagementRepository communityEngagementRepository,
+            AccessTokenValidator accessTokenValidator,
+            CassandraOperation cassandraOperation,
+            @Qualifier(Constants.SEARCH_RESULT_REDIS_TEMPLATE) RedisTemplate<String, SearchResult> redisTemplate,
+            CommunityCategoryRepository categoryRepository,
+            Producer producer,
+            UserService userService,
+            NotificationService notificationService,
+            FileProcessService fileProcessService) {
+        this.esUtilService = esUtilService;
+        this.cacheService = cacheService;
+        this.objectMapper = objectMapper;
+        this.cbServerProperties = cbServerProperties;
+        this.payloadValidation = payloadValidation;
+        this.communityEngagementRepository = communityEngagementRepository;
+        this.accessTokenValidator = accessTokenValidator;
+        this.cassandraOperation = cassandraOperation;
+        this.redisTemplate = redisTemplate;
+        this.categoryRepository = categoryRepository;
+        this.producer = producer;
+        this.userService = userService;
+        this.notificationService = notificationService;
+        this.fileProcessService = fileProcessService;
+    }
 
     @PostConstruct
     public void init() {
@@ -157,7 +165,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             payloadValidation.validatePayload(Constants.PAYLOAD_VALIDATION_FILE, communityDetails);
         } catch (CustomException e) {
-            log.error("Validation failed: {}", e.getMessage(), e);
+            log.error(VALIDATION_FAILED_LOG, e.getMessage(), e);
             response.getParams().setStatus(Constants.FAILED);
             response.getParams().setErrMsg(e.getMessage());
             response.setResponseCode(HttpStatus.BAD_REQUEST);
@@ -189,8 +197,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 return response;
             }
 
-            if (esUtilService.doesCommunityExist(userRootOrgId,
-                communityDetails.get(Constants.COMMUNITY_NAME).asText())) {
+            if (Boolean.TRUE.equals(esUtilService.doesCommunityExist(userRootOrgId,
+                communityDetails.get(Constants.COMMUNITY_NAME).asText()))) {
                 response.getParams().setStatus(Constants.FAILED);
                 response.getParams()
                     .setErrMsg(Constants.CREATE_ERROR_MSG_WITHIN_COMMUNITY);
@@ -202,14 +210,12 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 isCommunityCreationAllowed = communityDetails.get(Constants.CommunityCreationAllowed).asBoolean();
             }
 
-            if (!isCommunityCreationAllowed) {
-                if (esUtilService.doesCommunityNameExist(communityDetails.get(Constants.COMMUNITY_NAME).asText())) {
-                    response.getParams().setStatus(Constants.FAILED);
-                    response.getParams().setErrMsg(
-                        Constants.CREATE_ERROR_MSG_COMMUNITY);
-                    response.setResponseCode(HttpStatus.PRECONDITION_FAILED);
-                    return response;
-                }
+            if (!isCommunityCreationAllowed && Boolean.TRUE.equals(esUtilService.doesCommunityNameExist(communityDetails.get(Constants.COMMUNITY_NAME).asText()))) {
+                response.getParams().setStatus(Constants.FAILED);
+                response.getParams().setErrMsg(
+                    Constants.CREATE_ERROR_MSG_COMMUNITY);
+                response.setResponseCode(HttpStatus.PRECONDITION_FAILED);
+                return response;
             }
             Map<String, Object> propertyMapOrg = new HashMap<>();
             propertyMapOrg.put(Constants.ID, userRootOrgId);
@@ -272,7 +278,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
         } catch (Exception e) {
             log.error("error occured while creating commmunity:" + e);
-            throw new CustomException("error while processing", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new CustomException(Constants.ERROR_WHILE_PROCESSING, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -322,6 +328,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
     }
 
     private JsonNode addExtraproperties(JsonNode saveJsonEntity, String id, Timestamp currentTime) {
+        log.debug("id {}", id);
         ObjectNode modifiedNode = (ObjectNode) saveJsonEntity; // Create a mutable copy of the JsonNode
         modifiedNode.put(Constants.CREATED_ON, String.valueOf(currentTime));
         modifiedNode.put(Constants.UPDATED_ON, String.valueOf(currentTime));
@@ -334,13 +341,13 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ORG_BOOKMARK_READ);
         String userId = accessTokenValidator.verifyUserToken(authToken);
         if (StringUtils.isBlank(userId)) {
-            logger.error("Id not found");
+            logger.error(Constants.ID_NOT_FOUND);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             response.getParams().setErrMsg(Constants.ID_NOT_FOUND);
             return response;
         }
         if (StringUtils.isEmpty(communityId)) {
-            logger.error("Community Id not found");
+            logger.error(Constants.COMMUNITY_ID_NOT_FOUND);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             response.getParams().setErrMsg(Constants.ID_NOT_FOUND);
             return response;
@@ -348,7 +355,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             String cachedJson = cacheService.getCache(communityId);
             if (StringUtils.isNotEmpty(cachedJson)) {
-                log.info("Record coming from redis cache");
+                log.info(RECORD_FROM_REDIS_CACHE_LOG);
                 response.getParams().setErrMsg(Constants.SUCCESSFULLY_READING);
                 response
                         .getResult()
@@ -360,12 +367,12 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                     CommunityEntity communityEntity = communityEntityOptional.get();
                     cacheService.putCache(communityEntity.getCommunityId(),
                         communityEntityOptional.get().getData());
-                    log.info("Record coming from postgres db");
+                    log.info(RECORD_FROM_POSTGRES_LOG);
                     response.getParams().setErrMsg(Constants.SUCCESSFULLY_READING);
                     response.getResult().put(Constants.COMMUNITY_DETAILS, objectMapper.convertValue(communityEntity.getData(), new TypeReference<Object>() {
                     }));
                 } else {
-                    logger.error("Invalid Id: {}", communityId);
+                    logger.error(INVALID_ID_LOG, communityId);
                     response.setResponseCode(HttpStatus.NOT_FOUND);
                     response.getParams().setErrMsg(Constants.INVALID_COMMUNITY_ID);
                 }
@@ -373,7 +380,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
         } catch (Exception e) {
             logger.error("Error while mapping JSON for id {}: {}", communityId, e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return response;
     }
@@ -389,7 +396,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             return response;
         }
         if (StringUtils.isEmpty(communityId)) {
-            logger.error("Community Id not found");
+            logger.error(Constants.COMMUNITY_ID_NOT_FOUND);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             response.getParams().setErrMsg(Constants.COMMUNITY_ID_NOT_FOUND);
             return response;
@@ -426,8 +433,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
 
         } catch (Exception e) {
-            logger.error("Error while deleting community", communityId, e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing", HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error("Error while deleting community {} {}", communityId, e.getMessage(), e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return response;
     }
@@ -477,16 +484,14 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                         Constants.CommunityCreationAllowed).asBoolean();
                 }
 
-                if (!isCommunityCreationAllowed) {
-                    if (esUtilService.doesCommunityNameExistForPublish(
-                        dataNode.get(Constants.COMMUNITY_NAME).asText(),
-                        dataNode.get(Constants.COMMUNITY_ID).asText())) {
-                        response.getParams().setStatus(Constants.FAILED);
-                        response.getParams().setErrMsg(
-                            Constants.CREATE_ERROR_MSG_COMMUNITY);
-                        response.setResponseCode(HttpStatus.PRECONDITION_FAILED);
-                        return response;
-                    }
+                if (!isCommunityCreationAllowed && Boolean.TRUE.equals(esUtilService.doesCommunityNameExistForPublish(
+                    dataNode.get(Constants.COMMUNITY_NAME).asText(),
+                    dataNode.get(Constants.COMMUNITY_ID).asText()))) {
+                    response.getParams().setStatus(Constants.FAILED);
+                    response.getParams().setErrMsg(
+                        Constants.CREATE_ERROR_MSG_COMMUNITY);
+                    response.setResponseCode(HttpStatus.PRECONDITION_FAILED);
+                    return response;
                 }
 
                 updateCommunityDetails(communityEntityOptional.get(),userId,dataNode, Constants.DRAFT);
@@ -505,8 +510,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
 
         } catch (Exception e) {
-            logger.error("Error while deleting community:", e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing", HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error("Error while deleting community: {}", e.getMessage(), e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING, HttpStatus.INTERNAL_SERVER_ERROR);
 
         }
     }
@@ -529,7 +534,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             String communityId = (String) request.get(Constants.COMMUNITY_ID);
             Optional<CommunityEntity> optCommunity = communityEngagementRepository.findByCommunityIdAndIsActive(
                 communityId, true);
-            if (optCommunity == null || !optCommunity.isPresent() || optCommunity.get().getData()
+            if (!optCommunity.isPresent() || optCommunity.get().getData()
                 .isEmpty()) {
                 response.setResponseCode(HttpStatus.BAD_REQUEST);
                 response.getParams().setErr(Constants.INVALID_COMMUNITY_ID);
@@ -594,8 +599,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 }
             }
         } catch (Exception e) {
-            logger.error("Error while joining community:", e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            logger.error(ERROR_JOINING_COMMUNITY_LOG, e.getMessage(), e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
 
         }
@@ -650,7 +655,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             if (!userCommunityDetails.isEmpty()) {
                 userCommunityDetails.forEach(communityDetail -> {
                     Boolean status = (Boolean) communityDetail.get(Constants.STATUS);
-                    if (status instanceof Boolean && (Boolean) status) {
+                    if (Boolean.TRUE.equals(status)) {
                         String cachedJson = cacheService.getCache(
                             (String) communityDetail.get(Constants.COMMUNITY_ID_LOWERCASE));
                         if (StringUtils.isNotEmpty(cachedJson)) {
@@ -660,8 +665,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                                         new TypeReference<Object>() {
                                         }));
                             } catch (JsonProcessingException e) {
-                                logger.error("Error while joining community:", e.getMessage(), e);
-                                throw new CustomException(Constants.ERROR, "error while processing",
+                                logger.error(ERROR_JOINING_COMMUNITY_LOG, e.getMessage(), e);
+                                throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                                     HttpStatus.INTERNAL_SERVER_ERROR);
                             }
                         } else {
@@ -688,8 +693,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             return response;
 
         } catch (Exception e) {
-            logger.error("Error while joining community:", e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            logger.error(ERROR_JOINING_COMMUNITY_LOG, e.getMessage(), e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
 
         }
@@ -719,19 +724,19 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             int limit = 10;
 
             if (requestPayload.containsKey(Constants.OFFSET) && requestPayload.get(
-                Constants.OFFSET) instanceof Number) {
-                offset = ((Number) requestPayload.get(Constants.OFFSET)).intValue();
+                Constants.OFFSET) instanceof Number offsetNumber) {
+                offset = offsetNumber.intValue();
             }
 
             if (requestPayload.containsKey(Constants.LIMIT) && requestPayload.get(
-                Constants.LIMIT) instanceof Number) {
-                limit = ((Number) requestPayload.get(Constants.LIMIT)).intValue();
+                Constants.LIMIT) instanceof Number limitNumber) {
+                limit = limitNumber.intValue();
             }
             log.info("Fetching users from Redis for Community ID: {} with Offset: {}, Limit: {}",
                 communityId, offset, limit);
             Long listSize = cacheService.getListSize(
                 Constants.CMMUNITY_USER_REDIS_PREFIX + communityId);
-            List<String> paginatedUserIds = new ArrayList<>();
+            List<String> paginatedUserIds;
             Set<String> uniqueUserIds = new HashSet<>();
             if (listSize == null || listSize.equals(0L)) {
                 paginatedUserIds = fetchDataFromPrimary(communityId, offset, limit);
@@ -769,16 +774,17 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
             // Convert Redis Objects to Strings
             for (Object userIdObj : paginatedUserIds) {
-                if (userIdObj instanceof String) {
-                    uniqueUserIds.add((String) userIdObj);
+                if (userIdObj instanceof String userIdStr) {
+                    uniqueUserIds.add(userIdStr);
                 }
             }
             List<String> userListWithPrefix = new ArrayList<>(uniqueUserIds);
             List<Object> userList = fetchDataForKeys(userListWithPrefix);
             if (userList != null) {
                 userList.replaceAll(obj -> {
-                    if (obj instanceof Map) {
-                        Map<String, Object> map = (Map<String, Object>) obj;
+                    if (obj instanceof Map<?, ?> rawMap) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) rawMap;
                         map.computeIfPresent(Constants.DESIGNATION, (k, v) ->
                             Constants.NULL_STRING.equalsIgnoreCase(String.valueOf(v)) ? "" : v);
                     }
@@ -794,7 +800,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             List<String> missingUserIds = userListWithPrefix.stream()
                 .map(id -> id.replace(Constants.USER_PREFIX, ""))
                 .filter(id -> !userInfoList.containsKey(Constants.USER_PREFIX + id))
-                .collect(Collectors.toList());
+                .toList();
 
             if (!missingUserIds.isEmpty()) {
                 List<Object> cassandraResults = userService.fetchUserFromprimary(missingUserIds);
@@ -808,9 +814,9 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             response.setResponseCode(HttpStatus.OK);
             return response;
         } catch (Exception e) {
-            logger.error("Error while reading list of users joined in a  community:",
+            logger.error("Error while reading list of users joined in a  community: {}",
                 e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
 
         }
@@ -915,7 +921,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             String communityId = (String) request.get(Constants.COMMUNITY_ID);
             Optional<CommunityEntity> optCommunity = communityEngagementRepository.findByCommunityIdAndIsActive(
                 communityId, true);
-            if (optCommunity == null || !optCommunity.isPresent() || optCommunity.get().getData()
+            if (!optCommunity.isPresent() || optCommunity.get().getData()
                 .isEmpty()) {
                 response.setResponseCode(HttpStatus.BAD_REQUEST);
                 response.getParams().setErr(Constants.INVALID_COMMUNITY_ID);
@@ -929,8 +935,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             if (!CollectionUtils.isEmpty(userCommunityDetails)) {
                 Map<String, Object> existingRecord = userCommunityDetails.get(
                     0); // Fetch the first record
-                Boolean status = (Boolean) existingRecord.get(Constants.STATUS);
-                if (Boolean.FALSE.equals((Boolean) existingRecord.get(Constants.STATUS))) {
+                if (Boolean.FALSE.equals(existingRecord.get(Constants.STATUS))) {
                     response.setResponseCode(HttpStatus.BAD_REQUEST);
                     response.getParams().setErr(Constants.NOT_JOINED_ALREADY);
                     return response;
@@ -963,8 +968,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 return response;
             }
         } catch (Exception e) {
-            logger.error("Error while joining community:", e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            logger.error(ERROR_JOINING_COMMUNITY_LOG, e.getMessage(), e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
 
         }
@@ -975,7 +980,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         log.info("CommunityEngagementService:searchCommunity::inside method");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_COMMUNITY_SEARCH);
         try {
-            SearchResult searchResult = new SearchResult();
+            SearchResult searchResult;
             if (searchCriteria.isOverrideCache()) {
                 return handleSearchAndCache(searchCriteria, response, communityIndex);
             }
@@ -996,8 +1001,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
             return handleSearchAndCache(searchCriteria, response, communityIndex);
         } catch (Exception e) {
-            logger.error("Error occured while searching:", e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            logger.error(ERROR_SEARCHING_LOG, e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1033,7 +1038,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             payloadValidation.validatePayload(Constants.CATEGORY_PAYLOAD_VALIDATION_FILE, categoryDetails);
         } catch (CustomException e) {
-            log.error("Validation failed: {}", e.getMessage(), e);
+            log.error(VALIDATION_FAILED_LOG, e.getMessage(), e);
             response.getParams().setStatus(Constants.FAILED);
             response.getParams().setErrMsg(e.getMessage());
             response.setResponseCode(HttpStatus.BAD_REQUEST);
@@ -1096,7 +1101,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
         } catch (Exception e) {
             log.error("error occured while creating category: {}", e.getMessage(), e);
-            throw new CustomException("error while processing", e.getMessage(),
+            throw new CustomException(Constants.ERROR_WHILE_PROCESSING, e.getMessage(),
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
@@ -1108,7 +1113,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_CATEGORY_READ);
         String userId = accessTokenValidator.verifyUserToken(authToken);
         if (StringUtils.isBlank(userId)) {
-            logger.error("Id not found");
+            logger.error(Constants.ID_NOT_FOUND);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             response.getParams().setErrMsg(Constants.ID_NOT_FOUND);
             return response;
@@ -1125,14 +1130,14 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                     Integer.valueOf(categoryId), true));
             if (categoryOptional.isPresent()) {
                 CommunityCategory category = categoryOptional.get();
-                log.info("Record coming from postgres db");
+                log.info(RECORD_FROM_POSTGRES_LOG);
                 response.getParams().setErrMsg(Constants.SUCCESSFULLY_READING);
                 response.getResult().put(Constants.COMMUNITY_DETAILS,
                     objectMapper.convertValue(category, new TypeReference<Object>() {
                     }));
                 return response;
             } else {
-                logger.error("Invalid Id: {}", categoryId);
+                logger.error(INVALID_ID_LOG, categoryId);
                 response.setResponseCode(HttpStatus.NOT_FOUND);
                 response.getParams().setErrMsg(Constants.INVALID_CATEGORY_ID);
                 return response;
@@ -1140,7 +1145,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
         } catch (Exception e) {
             logger.error("Error while reading category {}: {}", categoryId, e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1151,7 +1156,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_CATEGORY_DELETE);
         String userId = accessTokenValidator.verifyUserToken(authToken);
         if (StringUtils.isBlank(userId)) {
-            logger.error("Id not found");
+            logger.error(Constants.ID_NOT_FOUND);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             response.getParams().setErrMsg(Constants.ID_NOT_FOUND);
             return response;
@@ -1192,7 +1197,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
         } catch (Exception e) {
             logger.error("Error while deleting category {}: {}", categoryId, e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1205,7 +1210,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_CATEGORY_UPDATE);
         String userId = accessTokenValidator.verifyUserToken(authToken);
         if (StringUtils.isBlank(userId)) {
-            logger.error("Id not found");
+            logger.error(Constants.ID_NOT_FOUND);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             response.getParams().setErrMsg(Constants.ID_NOT_FOUND);
             return response;
@@ -1213,7 +1218,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             payloadValidation.validatePayload(Constants.CATEGORY_PAYLOAD_VALIDATION_FILE, categoryDetails);
         } catch (CustomException e) {
-            log.error("Validation failed: {}", e.getMessage(), e);
+            log.error(VALIDATION_FAILED_LOG, e.getMessage(), e);
             response.getParams().setStatus(Constants.FAILED);
             response.getParams().setErrMsg(e.getMessage());
             response.setResponseCode(HttpStatus.BAD_REQUEST);
@@ -1257,7 +1262,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         } catch (Exception e) {
             logger.error("Error while updating category {}: {}",
                 categoryDetails.has(Constants.CATEGORY_ID), e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1269,7 +1274,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             String cachedJson = cacheService.getCache(Constants.CATEGORY_LIST_REDIS_KEY_PREFIX);
             if (StringUtils.isNotEmpty(cachedJson)) {
-                log.info("Record coming from redis cache");
+                log.info(RECORD_FROM_REDIS_CACHE_LOG);
                 response.getParams().setErrMsg(Constants.SUCCESSFULLY_READING);
                 response
                     .getResult()
@@ -1295,7 +1300,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         } catch (Exception e) {
             logger.error("Error while listing the categories: {}"
                 , e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1369,9 +1374,9 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
 
         } catch (Exception e) {
-            logger.error("Error while listing the sub-categories:"
+            logger.error("Error while listing the sub-categories: {}"
                 , e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1384,7 +1389,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             String cachedJson = cacheService.getCache(Constants.CATEGORY_LIST_ALL_REDIS_KEY_PREFIX);
             if (StringUtils.isNotEmpty(cachedJson)) {
-                log.info("Record coming from redis cache");
+                log.info(RECORD_FROM_REDIS_CACHE_LOG);
                 Map<String, Object> cachedData;
 
                 cachedData = objectMapper.readValue(cachedJson,
@@ -1404,7 +1409,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
             List<Integer> topicIds = optListCategories.stream()
                 .map(CommunityCategory::getCategoryId) // Assuming getId() retrieves the ID
-                .collect(Collectors.toList());
+                .toList();
             SearchResult searchResult
                 = esUtilService.fetchTopCommunitiesForTopics(topicIds, communityIndex);
             if (!searchResult.getData().isEmpty()) {
@@ -1448,7 +1453,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                     List<Map<String, Object>> subCategories = documents.stream()
                         .filter(doc -> doc.get(Constants.TOPIC_ID) != null &&
                             doc.get(Constants.TOPIC_ID).equals(parentCategory.getCategoryId()))
-                        .collect(Collectors.toList());
+                        .toList();
 
                     // Build the parent category map
                     Map<String, Object> parentCategoryMap = new HashMap<>();
@@ -1475,9 +1480,9 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
 
         } catch (Exception e) {
-            logger.error("Error while listing all categoires with subCategories:"
+            logger.error("Error while listing all categoires with subCategories: {}"
                 , e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1500,13 +1505,13 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             int limit = noOfPopularCommunities;
 
             if (payload.containsKey(Constants.OFFSET) && payload.get(
-                Constants.OFFSET) instanceof Number) {
-                offset = ((Number) payload.get(Constants.OFFSET)).intValue();
+                Constants.OFFSET) instanceof Number offsetNumber) {
+                offset = offsetNumber.intValue();
             }
 
             if (payload.containsKey(Constants.LIMIT) && payload.get(
-                Constants.LIMIT) instanceof Number) {
-                limit = ((Number) payload.get(Constants.LIMIT)).intValue();
+                Constants.LIMIT) instanceof Number limitNumber) {
+                limit = limitNumber.intValue();
             }
             // Build the query
             Query query = Query.of(q -> q.bool(b -> b
@@ -1547,8 +1552,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 // Process search hits
             List<Map<String, Object>> documents = searchResponse.hits().hits().stream()
                 .filter(hit -> hit.source() != null)
-                .map(hit -> hit.source()) // No need to cast if the generic type is correct
-                .collect(Collectors.toList());
+                .map(Hit::source)
+                .toList();
             response.getResult().put(Constants.DATA, documents);
 
 // Process aggregations
@@ -1566,7 +1571,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                                 bucketMap.put("doc_count", bucket.docCount());
                                 return bucketMap;
                             })
-                            .collect(Collectors.toList());
+                            .toList();
 
                         response.getResult().put(Constants.FACETS, buckets);
                     }
@@ -1731,18 +1736,22 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
 
             String uploadFolderPath =
-                cbServerProperties.getDiscussionCloudFolderName() + "/" + communityId;
+                cbServerProperties.getDiscussionCloudFolderName() + Constants.PATH_DELIMITER + communityId;
             return uploadFile(file, uploadFolderPath,
                 cbServerProperties.getDiscussionContainerName());
         } catch (Exception e) {
-            log.error("Failed to upload file. Exception: ", e);
+            log.error(FAILED_UPLOAD_FILE_LOG, e);
             response.getParams().setStatus(Constants.FAILED);
-            response.getParams().setErrMsg("Failed to upload file. Exception: " + e.getMessage());
+            response.getParams().setErrMsg(FAILED_UPLOAD_FILE_LOG + e.getMessage());
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         } finally {
             if (file != null && file.exists()) {
-                file.delete();
+                try {
+                    Files.delete(file.toPath());
+                } catch (IOException e) {
+                    log.error("Failed to delete temporary file: {}", file.getAbsolutePath(), e);
+                }
             }
         }
     }
@@ -1752,8 +1761,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         log.info("CommunityEngagementService:searchTopic::inside method");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_COMMUNITY_SEARCH);
         try {
-            SearchResult searchResult = new SearchResult();
-            searchResult = redisTemplate.opsForValue()
+            SearchResult searchResult = redisTemplate.opsForValue()
                 .get(generateRedisJwtTokenKey(searchCriteria));
             if (searchResult != null) {
                 log.info(
@@ -1770,8 +1778,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
             return handleSearchAndCache(searchCriteria, response, communityCategoryIndex);
         } catch (Exception e) {
-            logger.error("Error occured while searching:", e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            logger.error(ERROR_SEARCHING_LOG, e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1841,9 +1849,9 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             return response;
 
         } catch (Exception e) {
-            logger.error("Error while fetching all the communities joined by loggedIn user:",
+            logger.error("Error while fetching all the communities joined by loggedIn user: {}",
                 e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1878,19 +1886,17 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                     Constants.CommunityCreationAllowed).asBoolean();
             }
 
-            if (!isCommunityCreationAllowed) {
-                if (esUtilService.doesCommunityNameExistForPublish(
-                    communityDetails.get(Constants.COMMUNITY_NAME).asText(),
-                    communityDetails.get(Constants.COMMUNITY_ID).asText())) {
-                    response.getParams().setStatus(Constants.FAILED);
-                    response.getParams().setErrMsg(
-                        Constants.CREATE_ERROR_MSG_COMMUNITY);
-                    response.setResponseCode(HttpStatus.PRECONDITION_FAILED);
-                    return response;
-                }
+            if (!isCommunityCreationAllowed && Boolean.TRUE.equals(esUtilService.doesCommunityNameExistForPublish(
+                communityDetails.get(Constants.COMMUNITY_NAME).asText(),
+                communityDetails.get(Constants.COMMUNITY_ID).asText()))) {
+                response.getParams().setStatus(Constants.FAILED);
+                response.getParams().setErrMsg(
+                    Constants.CREATE_ERROR_MSG_COMMUNITY);
+                response.setResponseCode(HttpStatus.PRECONDITION_FAILED);
+                return response;
             }
         } catch (CustomException e) {
-            log.error("Validation failed: {}", e.getMessage(), e);
+            log.error(VALIDATION_FAILED_LOG, e.getMessage(), e);
             response.getParams().setStatus(Constants.FAILED);
             response.getParams().setErrMsg(e.getMessage());
             response.setResponseCode(HttpStatus.BAD_REQUEST);
@@ -1945,7 +1951,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         } catch (Exception e) {
             logger.error("Error while publishing community {}: {}",
                 communityDetails.has(Constants.COMMUNITY_ID), e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1955,22 +1961,21 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         log.info("CommunityEngagementService:searchCommunity::inside method");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_COMMUNITY_SEARCH);
         try {
-            SearchResult searchResult = new SearchResult();
             String searchString = searchCriteria.getSearchString();
             if (searchString != null && searchString.length() < 2) {
                 createErrorResponse(response, Constants.MINIMUM_CHARACTERS_NEEDED,
                     HttpStatus.BAD_REQUEST, Constants.FAILED_CONST);
                 return response;
             }
-            return searchCommunityFromEs(searchCriteria, response, communityIndex);
+            return searchCommunityFromEs(searchCriteria, response);
         } catch (RuntimeException e) {
             log.error("Validation error in search:", e);
             createErrorResponse(response, e.getMessage(),
                     HttpStatus.BAD_REQUEST, Constants.FAILED_CONST);
             return response;
         } catch (Exception e) {
-            logger.error("Error occured while searching:", e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            logger.error(ERROR_SEARCHING_LOG, e);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1992,19 +1997,19 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 log.info("No records found in the table: {}.{}");
             } else {
                 // Process the fetched records
-                for (Map<String, Object> record : records) {
+                for (Map<String, Object> fileRecord : records) {
                     // Add your processing logic here
                     // Check if the record contains the key 'status' and if its value is true
-                    if (record.containsKey("status") && Constants.TRUE.equalsIgnoreCase(
-                        (String) record.get("status"))) {
-                        String userId = (String) record.get(
+                    if (fileRecord.containsKey("status") && Constants.TRUE.equalsIgnoreCase(
+                        (String) fileRecord.get("status"))) {
+                        String userId = (String) fileRecord.get(
                             Constants.USER_ID_LOWER_CASE); // Fetch userId from the record
-                        String communityId = (String) record.get(
+                        String communityId = (String) fileRecord.get(
                             Constants.COMMUNITY_ID_LOWERCASE); // Fetch communityId from the record
                         esUtilService.updateUserIndex(userId, communityId, true);
                         // Add your processing logic here
                     } else {
-                        log.info("Skipping record: {}", record);
+                        log.info("Skipping record: {}", fileRecord);
                     }
                 }
             }
@@ -2015,7 +2020,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
         } catch (Exception e) {
             logger.error("Error occurred while syncing users with community:", e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return response;
@@ -2025,23 +2030,22 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         log.info("CommunityServiceImpl::validateFileAndProcessRows");
         String fileName = file.getOriginalFilename();
         if (fileName == null) {
-            throw new RuntimeException("File name is null");
+            throw new CustomException(Constants.ERROR, "File name is null", HttpStatus.BAD_REQUEST);
         }
 
         try (InputStream inputStream = file.getInputStream()) {
             if (fileName.endsWith(".csv")) {
                 return fileProcessService.processCsvAndSendMessage(inputStream);
             } else {
-                throw new RuntimeException("Unsupported file type: " + fileName);
+                throw new CustomException(Constants.ERROR, "Unsupported file type: " + fileName, HttpStatus.BAD_REQUEST);
             }
         } catch (IOException e) {
             log.error("Error while processing file: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private ApiResponse searchCommunityFromEs(SearchCriteria searchCriteria, ApiResponse response,
-        String communityIndex) {
+    private ApiResponse searchCommunityFromEs(SearchCriteria searchCriteria, ApiResponse response) {
         try {
             SearchResult searchResult = esUtilService.searchDocuments(Constants.INDEX_NAME,
                 searchCriteria);
@@ -2067,17 +2071,18 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 List<Object> userList = fetchDataForKeys(userIdList);
                 if (userList != null) {
                     userList.replaceAll(obj -> {
-                        if (obj instanceof Map) {
-                            Map<String, Object> map = (Map<String, Object>) obj;
+                        if (obj instanceof Map<?, ?> rawMap) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> map = (Map<String, Object>) rawMap;
                             map.computeIfPresent(Constants.DESIGNATION, (k, v) ->
                                 Constants.NULL_STRING.equalsIgnoreCase(String.valueOf(v)) ? "" : v);
                         }
                         return obj;
                     });
                     List<Map<String, Object>> userInfoList = userList.stream()
-                        .filter(obj -> obj instanceof Map) // Ensure the object is a Map
+                        .filter(Map.class::isInstance) // Ensure the object is a Map
                         .map(obj -> (Map<String, Object>) obj) // Cast to Map<String, Object>
-                        .collect(Collectors.toList());
+                        .toList();
                     if (userInfoList != null) {
                         searchResult.setAdditionalInfo(userInfoList);
                     }
@@ -2097,7 +2102,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
     public ApiResponse uploadFile(File file, String cloudFolderName, String containerName) {
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.UPLOAD_FILE);
         try {
-            String objectKey = cloudFolderName + "/" + file.getName();
+            String objectKey = cloudFolderName + Constants.PATH_DELIMITER + file.getName();
             String url = storageService.upload(containerName, file.getAbsolutePath(),
                 objectKey, Option.apply(false), Option.apply(1), Option.apply(5), Option.empty());
             Map<String, String> uploadedFile = new HashMap<>();
@@ -2106,16 +2111,16 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             response.getResult().putAll(uploadedFile);
             return response;
         } catch (Exception e) {
-            log.error("Failed to upload file. Exception: ", e);
+            log.error(FAILED_UPLOAD_FILE_LOG, e);
             response.getParams().setStatus(Constants.FAILED);
-            response.getParams().setErrMsg("Failed to upload file. Exception: " + e.getMessage());
+            response.getParams().setErrMsg(FAILED_UPLOAD_FILE_LOG + e.getMessage());
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         }
     }
 
     private String validateReportPayload(Map<String, Object> reportData) {
-        StringBuffer errorMsg = new StringBuffer();
+        StringBuilder errorMsg = new StringBuilder();
         List<String> errList = new ArrayList<>();
 
         if (reportData.containsKey(Constants.COMMUNITY_ID) && StringUtils.isBlank(
@@ -2124,15 +2129,14 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         }
         if (reportData.containsKey(Constants.REPORTED_REASON)) {
             Object reportedReasonObj = reportData.get(Constants.REPORTED_REASON);
-            if (reportedReasonObj instanceof List) {
-                List<String> reportedReasonList = (List<String>) reportedReasonObj;
+            if (reportedReasonObj instanceof List<?> rawReportedReasonList) {
+                @SuppressWarnings("unchecked")
+                List<String> reportedReasonList = (List<String>) rawReportedReasonList;
                 if (reportedReasonList.isEmpty()) {
                     errList.add(Constants.REPORTED_REASON);
-                } else if (reportedReasonList.contains(Constants.OTHERS)) {
-                    if (!reportData.containsKey(Constants.OTHER_REASON) ||
-                        StringUtils.isBlank((String) reportData.get(Constants.OTHER_REASON))) {
-                        errList.add(Constants.OTHER_REASON);
-                    }
+                } else if (reportedReasonList.contains(Constants.OTHERS) && (!reportData.containsKey(Constants.OTHER_REASON) ||
+                    StringUtils.isBlank((String) reportData.get(Constants.OTHER_REASON)))) {
+                    errList.add(Constants.OTHER_REASON);
                 }
             } else {
                 errList.add(Constants.REPORTED_REASON);
@@ -2147,7 +2151,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
     private CommunityCategory persistCategoryInPrimary(JsonNode categoryDetails, Integer parentId,
         String userId, Timestamp currentTimestamp, String userRootOrgId) {
-        log.info("CommunityEngagementService:persistCategoryInPimaryAndEs:saving");
+        log.info("CommunityEngagementService:persistCategoryInPimaryAndEs:saving, userId {}", userId);
         CommunityCategory communityCategory = new CommunityCategory();
         communityCategory.setCategoryName(categoryDetails.get(Constants.CATEGORY_NAME).asText());
         communityCategory.setDescription(categoryDetails.get(Constants.DESCRIPTION).asText());
@@ -2167,11 +2171,6 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             SearchResult searchResult = esUtilService.searchDocuments(indexName,
                 searchCriteria);
-            List<Map<String, Object>> discussions = objectMapper.convertValue(
-                searchResult.getData(),
-                new TypeReference<List<Map<String, Object>>>() {
-                }
-            );
             if (!searchResult.getData().isEmpty()) {
                 Set<String> uniqueOrgIds = new HashSet<>();
                 // Extract 'data' field from searchResult
@@ -2190,10 +2189,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 List<String> orgIdList = new ArrayList<>(uniqueOrgIds);
                 Map<String, Object> propertyMap = new HashMap<>();
                 propertyMap.put(Constants.ID, orgIdList);
-//                List<Map<String, Object>> orgInfoList = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
-//                    Constants.KEYSPACE_SUNBIRD, Constants.TABLE_ORGANISATION, propertyMap,
-//                    Arrays.asList(Constants.LOGO, Constants.ORG_NAME, Constants.ID), null);
-                enrichOrgInfo(searchCriteria, searchResult, uniqueOrgIds, orgIdList);
+                enrichOrgInfo(searchResult, uniqueOrgIds, orgIdList);
 
             }
 
@@ -2208,24 +2204,24 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             return response;
         } catch (Exception e) {
             logger.error("Exception occured while fetching and caching in search API:", e);
-            throw new CustomException(Constants.ERROR, "error while processing",
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING,
                 HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
     }
 
-    private void enrichOrgInfo(SearchCriteria searchCriteria, SearchResult searchResult, Set<String> uniqueOrgIds, List<String> orgIdList) {
+    private void enrichOrgInfo(SearchResult searchResult, Set<String> uniqueOrgIds, List<String> orgIdList) {
         List<Object> redisResults = fetchDataForKeys(
-            orgIdList.stream().map(id -> Constants.ORG_REDIX_KEY + id).collect(Collectors.toList())
+            orgIdList.stream().map(id -> Constants.ORG_REDIX_KEY + id).toList()
         );
         List<Map<String, Object>> orgInfoList = redisResults.stream()
-            .filter(obj -> obj instanceof Map) // Ensure the object is a Map
+            .filter(Map.class::isInstance) // Ensure the object is a Map
             .map(obj -> (Map<String, Object>) obj) // Cast to Map<String, Object>
             .collect(Collectors.toList());
         // Remove found IDs from orgIdSet
         redisResults.forEach(obj -> {
-            if (obj instanceof Map) {
-                Object idValue = ((Map<?, ?>) obj).get(Constants.ID);
+            if (obj instanceof Map<?, ?> map) {
+                Object idValue = map.get(Constants.ID);
                 if (idValue != null) {
                     uniqueOrgIds.remove(idValue.toString()); // Remove if found
                 }
@@ -2281,7 +2277,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
     }
 
     private String validateJoinPayload(Map<String, Object> request) {
-        StringBuffer str = new StringBuffer();
+        StringBuilder str = new StringBuilder();
         List<String> errList = new ArrayList<>();
 
         if (request.containsKey(Constants.COMMUNITY_ID) &&
@@ -2299,7 +2295,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         log.info("CommunityEngagementService:read:reading community");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ORG_BOOKMARK_READ);
         if (StringUtils.isEmpty(communityId)) {
-            logger.error("Community Id not found");
+            logger.error(Constants.COMMUNITY_ID_NOT_FOUND);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
             response.getParams().setErrMsg(Constants.ID_NOT_FOUND);
             return response;
@@ -2307,7 +2303,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             String cachedJson = cacheService.getCache(communityId);
             if (StringUtils.isNotEmpty(cachedJson)) {
-                log.info("Record coming from redis cache");
+                log.info(RECORD_FROM_REDIS_CACHE_LOG);
                 response.getParams().setErrMsg(Constants.SUCCESSFULLY_READING);
                 response
                         .getResult()
@@ -2319,12 +2315,12 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                     CommunityEntity communityEntity = communityEntityOptional.get();
                     cacheService.putCache(communityEntity.getCommunityId(),
                             communityEntityOptional.get().getData());
-                    log.info("Record coming from postgres db");
+                    log.info(RECORD_FROM_POSTGRES_LOG);
                     response.getParams().setErrMsg(Constants.SUCCESSFULLY_READING);
                     response.getResult().put(Constants.COMMUNITY_DETAILS, objectMapper.convertValue(communityEntity.getData(), new TypeReference<Object>() {
                     }));
                 } else {
-                    logger.error("Invalid Id: {}", communityId);
+                    logger.error(INVALID_ID_LOG, communityId);
                     response.setResponseCode(HttpStatus.NOT_FOUND);
                     response.getParams().setErrMsg(Constants.INVALID_COMMUNITY_ID);
                 }
@@ -2332,7 +2328,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
         } catch (Exception e) {
             logger.error("Error while mapping JSON for id {}: {}", communityId, e.getMessage(), e);
-            throw new CustomException(Constants.ERROR, "error while processing", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return response;
     }
@@ -2380,7 +2376,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
         } catch (Exception e) {
             logger.error("Error while admin joining users to community", e);
-            throw new CustomException(Constants.ERROR, "error while processing", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -2474,7 +2470,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
         } catch (Exception e) {
             logger.error("Error while admin removing users from community", e);
-            throw new CustomException(Constants.ERROR, "error while processing", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new CustomException(Constants.ERROR, Constants.ERROR_WHILE_PROCESSING, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -2553,10 +2549,12 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
     private String validateUserIds(Map<String, Object> request) {
         Object usersObj = request.get(Constants.USER_IDS);
-        if (!(usersObj instanceof List)) {
+        if (!(usersObj instanceof List<?> rawUsersList)) {
             return "Invalid userIds";
         }
-        List<String> userIds = new ArrayList<>(new LinkedHashSet<>((List<String>) usersObj));
+        @SuppressWarnings("unchecked")
+        List<String> usersList = (List<String>) rawUsersList;
+        List<String> userIds = new ArrayList<>(new LinkedHashSet<>(usersList));
         if (CollectionUtils.isEmpty(userIds)) {
             return "userIds cannot be empty";
         }
