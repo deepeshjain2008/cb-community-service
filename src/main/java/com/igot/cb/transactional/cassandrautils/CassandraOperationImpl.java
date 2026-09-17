@@ -33,8 +33,12 @@ public class CassandraOperationImpl implements CassandraOperation {
 
     private Logger logger = LoggerFactory.getLogger(getClass().getName());
 
+    private final CassandraConnectionManager connectionManager;
+
     @Autowired
-    CassandraConnectionManager connectionManager;
+    public CassandraOperationImpl(CassandraConnectionManager connectionManager) {
+        this.connectionManager = connectionManager;
+    }
 
     private com.datastax.oss.driver.api.querybuilder.select.Select processQuery(String keyspaceName, String tableName, Map<String, Object> propertyMap,
                                                                                 List<String> fields) {

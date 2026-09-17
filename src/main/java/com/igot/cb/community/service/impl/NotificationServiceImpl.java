@@ -25,28 +25,29 @@ import java.util.stream.Collectors;
 @Slf4j
 public class NotificationServiceImpl implements NotificationService {
 
-  @Autowired
-  CassandraOperation cassandraOperation;
-
-  @Autowired
-  ObjectMapper objectMapper;
-
-  @Autowired
-  CbServerProperties props;
-
-  @Autowired
-  OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
+  private final CassandraOperation cassandraOperation;
+  private final ObjectMapper objectMapper;
+  private final CbServerProperties props;
+  private final OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
   @Value("${moderator.mail.subject}")
   private String moderatorMailSubject;
 
   private Logger logger = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
+  @Autowired
+  public NotificationServiceImpl(CassandraOperation cassandraOperation, ObjectMapper objectMapper,
+      CbServerProperties props, OutboundRequestHandlerServiceImpl outboundRequestHandlerService) {
+    this.cassandraOperation = cassandraOperation;
+    this.objectMapper = objectMapper;
+    this.props = props;
+    this.outboundRequestHandlerService = outboundRequestHandlerService;
+  }
+
   @Override
   public void sendNotification(List<String> moderatorIds, String communityId, String userId,
       String communityName) {
     logger.info("NotificationService::sendNotification:Sending notification to moderators");
-    List<String> fields = Arrays.asList(Constants.FIRST_NAME);
     moderatorIds.add(userId);
     Map<String, Object> propertiesMap = new HashMap<>();
     propertiesMap.put(Constants.ID, moderatorIds);
@@ -95,7 +96,7 @@ public class NotificationServiceImpl implements NotificationService {
     String link = props.getDomainUrl()+props.getFixedCommunityUrl()+communityId;
     Map<String, Object> mailNotificationDetails = new HashMap<>();
     mailNotificationDetails.put(Constants.SUBJECT, moderatorMailSubject);
-    mailNotificationDetails.put(Constants.LINK, link.toString());
+    mailNotificationDetails.put(Constants.LINK, link);
     mailNotificationDetails.put(Constants.USER_ID, userId);
     mailNotificationDetails.put(Constants.MDO_LEADER_NAME, senderUserMap.get(userId).get(Constants.FIRST_NAME));
     mailNotificationDetails.put(Constants.COMMUNITY_NAME_TAG, communityName);
@@ -155,14 +156,14 @@ public class NotificationServiceImpl implements NotificationService {
     builder.append(props.getNotifyServiceHost()).append(props.getNotifyServicePathAsync());
     try {
       Map<String, Object> response = outboundRequestHandlerService.fetchResultUsingPost(builder.toString(), request, null);
-      logger.debug("The email notification is successfully sent, response is: " + response);
+      logger.debug("The email notification is successfully sent, response is: {}", response);
     } catch (Exception e) {
       logger.error("Exception while posting the data in notification service: ", e);
     }
   }
 
   private String constructEmailTemplate(String templateName, Map<String, Object> params) {
-    String replacedHTML = new String();
+    String replacedHTML = "";
     try {
       Map<String, Object> propertyMap = new HashMap<>();
       propertyMap.put(Constants.NAME, templateName);

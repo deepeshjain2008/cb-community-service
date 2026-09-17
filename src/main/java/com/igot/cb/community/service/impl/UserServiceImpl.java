@@ -25,13 +25,17 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class UserServiceImpl implements UserService {
-  @Autowired
-  CassandraOperation cassandraOperation;
+  private final CassandraOperation cassandraOperation;
 
   private Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
+  private final ObjectMapper objectMapper;
+
   @Autowired
-  private ObjectMapper objectMapper;
+  public UserServiceImpl(CassandraOperation cassandraOperation, ObjectMapper objectMapper) {
+    this.cassandraOperation = cassandraOperation;
+    this.objectMapper = objectMapper;
+  }
 
   @Override
   public List<Object> fetchUserFromprimary(List<String> userIds) {

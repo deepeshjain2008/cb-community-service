@@ -19,10 +19,14 @@ import java.util.Set;
 @Service
 public class PayloadValidation {
 
-  @Autowired
-  JsonSchemaCache schemaCache;
+  private final JsonSchemaCache schemaCache;
 
   private Logger logger = LoggerFactory.getLogger(PayloadValidation.class);
+
+  @Autowired
+  public PayloadValidation(JsonSchemaCache schemaCache) {
+    this.schemaCache = schemaCache;
+  }
 
   public void validatePayload(String schemaKey, JsonNode payload) {
 //    log.info("PayloadValidation::validatePayload:inside");

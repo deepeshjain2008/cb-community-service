@@ -23,8 +23,12 @@ import java.util.Map;
 public class RequestHandlerServiceImpl {
     private Logger log = LoggerFactory.getLogger(RequestHandlerServiceImpl.class);
 
+    private final RestTemplate restTemplate;
+
     @Autowired
-    private RestTemplate restTemplate;
+    public RequestHandlerServiceImpl(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     public Map<String, Object> fetchResultUsingPost(String uri, Object request, Map<String, String> headersValues) {
         ObjectMapper mapper = new ObjectMapper();

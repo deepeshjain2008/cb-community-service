@@ -70,18 +70,19 @@ public class EsUtilServiceImpl implements EsUtilService {
     private final Map<String, Map<String, Object>> schemaCache = new ConcurrentHashMap<>();
 
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
 
-    @Autowired
-    private CbServerProperties cbServerProperties;
+    private final CbServerProperties cbServerProperties;
 
     @Autowired
     public EsUtilServiceImpl(@Qualifier("elasticsearchClient") ElasticsearchClient elasticsearchClient, EsConfig esConnection,
-        @Qualifier("userESClient") RestHighLevelClient userESClient) {
+        @Qualifier("userESClient") RestHighLevelClient userESClient, ObjectMapper objectMapper,
+        CbServerProperties cbServerProperties) {
         this.elasticsearchClient = elasticsearchClient;
         this.esConfig = esConnection;
         this.userESClient = userESClient;
+        this.objectMapper = objectMapper;
+        this.cbServerProperties = cbServerProperties;
     }
 
     @Value("${user_index_name}")

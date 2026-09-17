@@ -28,8 +28,12 @@ public class OutboundRequestHandlerServiceImpl {
 
   private Logger log = LoggerFactory.getLogger(OutboundRequestHandlerServiceImpl.class);
 
+  private final RestTemplate restTemplate;
+
   @Autowired
-  private RestTemplate restTemplate;
+  public OutboundRequestHandlerServiceImpl(RestTemplate restTemplate) {
+    this.restTemplate = restTemplate;
+  }
 
   /**
    * @param uri
