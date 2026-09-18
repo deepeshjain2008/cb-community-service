@@ -110,7 +110,6 @@ public class Constants {
     public static final String NOT_JOINED_ALREADY = "This user is not already joined";
     public static final String API_COMMUNITY_SEARCH = "api.community.search";
     public static final String REQUEST_PAYLOAD = "requestPayload";
-    public static final String JWT_SECRET_KEY = "community_search_result";
     public static final String SEARCH_RESULTS = "search_results";
     public static final String MINIMUM_CHARACTERS_NEEDED= "Minimum 3 characters are required to search";
     public static final String FAILED_CONST = "FAILED";

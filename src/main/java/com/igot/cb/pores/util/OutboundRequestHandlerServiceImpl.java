@@ -22,9 +22,8 @@ import java.util.Map;
 @Slf4j
 public class OutboundRequestHandlerServiceImpl {
 
-  private Logger log = LoggerFactory.getLogger(OutboundRequestHandlerServiceImpl.class);
-
   private static final String ERROR_RESPONSE_LOG = "Error Response: {}";
+  private static final String ERROR_RECEIVED_LOG = "Error received: {}";
   private static final String ERROR_PARSING_RESPONSE_LOG = "Error while parsing error response: {}";
   private static final String ERROR_LOGGING_RESPONSE_LOG = "Error while logging response: {}";
   private static final String DEBUG_LOG_FORMAT_SIX_ARGS = "{}{}{}{}{}{}";
@@ -100,7 +99,7 @@ public class OutboundRequestHandlerServiceImpl {
       } catch (Exception e1) {
         log.error(ERROR_PARSING_RESPONSE_LOG, e1.getMessage());
       }
-      log.error("Error received: {}", e.getResponseBodyAsString(), e);
+      log.error(ERROR_RECEIVED_LOG, e.getResponseBodyAsString(), e);
     } catch (Exception e) {
       log.error(e.getMessage());
       try {
@@ -162,7 +161,7 @@ public class OutboundRequestHandlerServiceImpl {
       } catch (Exception e1) {
         log.error(ERROR_PARSING_RESPONSE_LOG, e1.getMessage());
       }
-      log.error("Error received: {}", e.getResponseBodyAsString(), e);
+      log.error(ERROR_RECEIVED_LOG, e.getResponseBodyAsString(), e);
     } catch (Exception e) {
       log.error(e.getMessage());
       try {
@@ -204,7 +203,7 @@ public class OutboundRequestHandlerServiceImpl {
       } catch (Exception e1) {
         log.error(ERROR_PARSING_RESPONSE_LOG, e1.getMessage());
       }
-      log.error("Error received: {}", hce.getResponseBodyAsString(), hce);
+      log.error(ERROR_RECEIVED_LOG, hce.getResponseBodyAsString(), hce);
     } catch(JsonProcessingException e) {
       log.error(e.getMessage());
       try {
@@ -236,7 +235,7 @@ public class OutboundRequestHandlerServiceImpl {
       } catch (Exception e1) {
         log.error(ERROR_PARSING_RESPONSE_LOG, e1.getMessage());
       }
-      log.error("Error received: {}", e.getResponseBodyAsString(), e);
+      log.error(ERROR_RECEIVED_LOG, e.getResponseBodyAsString(), e);
     }
     if (response == null) {
       return MapUtils.EMPTY_MAP;

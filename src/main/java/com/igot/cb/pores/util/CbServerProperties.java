@@ -73,4 +73,7 @@ public class CbServerProperties {
 
     @Value("${community.admin.join.max.user}")
     private int communityAdminJoinMaxUser;
+
+    @Value("${jwt.secret.key}")
+    private String jwtSecretKey;
 }
