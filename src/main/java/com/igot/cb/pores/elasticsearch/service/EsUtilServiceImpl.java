@@ -12,7 +12,6 @@ import co.elastic.clients.elasticsearch._types.query_dsl.*;
 import co.elastic.clients.elasticsearch.core.*;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import co.elastic.clients.elasticsearch.core.SearchRequest.Builder;
 import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.search.SourceConfig;
@@ -61,13 +60,12 @@ import java.util.Map.Entry;
 @Slf4j
 public class EsUtilServiceImpl implements EsUtilService {
 
-    /*@Autowired
-    private RestHighLevelClient elasticsearchClient;*/
     private final EsConfig esConfig;
     private final ElasticsearchClient elasticsearchClient;
     private  final RestHighLevelClient userESClient;
     private final Logger logger = LogManager.getLogger(getClass());
     private final Map<String, Map<String, Object>> schemaCache = new ConcurrentHashMap<>();
+    private static final String ERROR_CHECKING_COMMUNITY_EXISTENCE_LOG = "Error checking community existence in Elasticsearch: {}";
 
 
     private final ObjectMapper objectMapper;
@@ -94,11 +92,11 @@ public class EsUtilServiceImpl implements EsUtilService {
 
     @Override
     public String addDocument(
-            String esIndexName, String type, String id, Map<String, Object> document, String JsonFilePath) {
+            String esIndexName, String type, String id, Map<String, Object> document, String jsonFilePath) {
         logger.info("EsUtilServiceImpl :: addDocument");
         try {
             JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance();
-            InputStream schemaStream = schemaFactory.getClass().getResourceAsStream(JsonFilePath);
+            InputStream schemaStream = schemaFactory.getClass().getResourceAsStream(jsonFilePath);
             Map<String, Object> map = objectMapper.readValue(schemaStream,
                 new TypeReference<Map<String, Object>>() {
                 });
@@ -126,10 +124,10 @@ public class EsUtilServiceImpl implements EsUtilService {
 
     @Override
     public String updateDocument(
-            String index, String indexType, String entityId, Map<String, Object> updatedDocument, String JsonFilePath) {
+            String index, String indexType, String entityId, Map<String, Object> updatedDocument, String jsonFilePath) {
         try {
             JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance();
-            InputStream schemaStream = schemaFactory.getClass().getResourceAsStream(JsonFilePath);
+            InputStream schemaStream = schemaFactory.getClass().getResourceAsStream(jsonFilePath);
             Map<String, Object> map = objectMapper.readValue(schemaStream,
                     new TypeReference<Map<String, Object>>() {
                     });
@@ -176,7 +174,10 @@ public class EsUtilServiceImpl implements EsUtilService {
     public SearchResult searchDocuments(String esIndexName, SearchCriteria searchCriteria) {
         String searchString = searchCriteria.getSearchString();
         if (searchString != null && searchString.length() > cbServerProperties.getSearchStringMaxRegexLength()) {
-            throw new RuntimeException("The length of the search string exceeds the allowed maximum of " + cbServerProperties.getSearchStringMaxRegexLength() + " characters.");
+            throw new CustomException(Constants.ERROR,
+                "The length of the search string exceeds the allowed maximum of "
+                    + cbServerProperties.getSearchStringMaxRegexLength() + " characters.",
+                HttpStatus.BAD_REQUEST);
         }
         SearchRequest.Builder searchRequestBuilder = buildSearchRequest(searchCriteria);
         searchRequestBuilder.index(esIndexName);
@@ -250,20 +251,6 @@ public class EsUtilServiceImpl implements EsUtilService {
                         String key = bucket.key().stringValue();
                         long docCount = bucket.docCount();
 
-                        // Check for nested top hits aggregation
-                        Aggregate topHitsAgg = bucket.aggregations().get("top_hits#topNames");
-                        List<String> topNames = new ArrayList<>();
-
-                        if (topHitsAgg != null && topHitsAgg.isTopHits()) {
-                            for (Hit<JsonData> hit : topHitsAgg.topHits().hits().hits()) {
-                                Map<String, Object> source = hit.source().to(Map.class); // Convert JsonData to Map
-                                if (source != null && source.containsKey(Constants.TOPIC_ID)) {
-                                    topNames.add((String) source.get(Constants.TOPIC_ID));
-                                }
-                            }
-                        }
-
-                        // Add FacetDTO with the key, doc count, and top names
                         FacetDTO facetDTO = new FacetDTO(key, docCount);
                         fieldValueList.add(facetDTO);
                     }
@@ -358,26 +345,31 @@ public class EsUtilServiceImpl implements EsUtilService {
             List<Query> boolQueries = new ArrayList<>();
             filterCriteriaMap.forEach(
                     (field, value) -> {
-                        if (field.equals("must_not") && value instanceof ArrayList) {
+                        if (field.equals("must_not") && value instanceof ArrayList<?> mustNotList) {
+                            @SuppressWarnings("unchecked")
+                            ArrayList<String> mustNotValues = (ArrayList<String>) mustNotList;
                             mustNotQueries.add(Query.of(
-                                    q -> q.termsSet(t -> t.field(field).terms((ArrayList<String>) value))));
-                        } else if (value instanceof Boolean) {
+                                    q -> q.termsSet(t -> t.field(field).terms(mustNotValues))));
+                        } else if (value instanceof Boolean booleanValue) {
                             boolQueries.add(
-                                    Query.of(q -> q.term(t -> t.field(field).value((boolean) value))));
-                        } else if (value instanceof ArrayList) {
-                            List<FieldValue> termsList = ((ArrayList<String>) value).stream()
+                                    Query.of(q -> q.term(t -> t.field(field).value(booleanValue))));
+                        } else if (value instanceof ArrayList<?> rawList) {
+                            @SuppressWarnings("unchecked")
+                            ArrayList<String> valueList = (ArrayList<String>) rawList;
+                            List<FieldValue> termsList = valueList.stream()
                                     .map(FieldValue::of)
-                                    .collect(Collectors.toList());
+                                    .toList();
                             boolQueryBuilder.must(Query.of(q -> q.terms(
                                     t -> t.field(field + Constants.KEYWORD)
                                             .terms(terms -> terms.value(termsList)))));
-                        } else if (value instanceof String) {
+                        } else if (value instanceof String stringValue) {
                             boolQueryBuilder.must(Query.of(q -> q.terms(t ->
                                     t.field(field + Constants.KEYWORD)
-                                            .terms(terms -> terms.value(List.of(FieldValue.of((String) value))))
+                                            .terms(terms -> terms.value(List.of(FieldValue.of(stringValue))))
                             )));
-                        } else if (value instanceof Map) {
-                            Map<String, Object> nestedMap = (Map<String, Object>) value;
+                        } else if (value instanceof Map<?, ?> rawMap) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> nestedMap = (Map<String, Object>) rawMap;
                             if (isRangeQuery(nestedMap)) {
                                 // Handle range query
                                 BoolQuery.Builder rangeOrNullQuery = QueryBuilders.bool();
@@ -396,6 +388,9 @@ public class EsUtilServiceImpl implements EsUtilService {
                                         case Constants.SEARCH_OPERATION_LESS_THAN:
                                             rangeQuery.lt(JsonData.of(rangeValue));
                                             break;
+                                        default:
+                                            logger.warn("Unsupported range operator: {}", rangeOperator);
+                                            break;
                                     }
                                 });
                                 rangeOrNullQuery.should(rangeQuery.build()._toQuery());
@@ -405,12 +400,12 @@ public class EsUtilServiceImpl implements EsUtilService {
                             } else {
                                 nestedMap.forEach((nestedField, nestedValue) -> {
                                     String fullPath = field + "." + nestedField;
-                                    if (nestedValue instanceof Boolean) {
+                                    if (nestedValue instanceof Boolean booleanValue) {
                                         boolQueryBuilder.must(Query.of(q -> q.term(
-                                                t -> t.field(fullPath).value((Boolean) nestedValue))));
-                                    } else if (nestedValue instanceof String) {
+                                                t -> t.field(fullPath).value(booleanValue))));
+                                    } else if (nestedValue instanceof String stringValue) {
                                         List<FieldValue> termList = Collections.singletonList(
-                                                FieldValue.of((String) nestedValue));
+                                                FieldValue.of(stringValue));
                                         boolQueryBuilder.must(Query.of(q -> q.terms(
                                                 t -> t.field(fullPath + Constants.KEYWORD)
                                                         .terms((TermsQueryField) termList))));
@@ -423,8 +418,8 @@ public class EsUtilServiceImpl implements EsUtilService {
                             }
                         }
                     });
-            mustNotQueries.forEach(mustNotQuery -> boolQueryBuilder.mustNot(mustNotQuery));
-            boolQueries.forEach(boolQuery -> boolQueryBuilder.must(boolQuery));
+            mustNotQueries.forEach(boolQueryBuilder::mustNot);
+            boolQueries.forEach(boolQueryBuilder::must);
             return boolQueryBuilder;
         } else {
             return null;
@@ -480,7 +475,7 @@ public class EsUtilServiceImpl implements EsUtilService {
                 .collect(Collectors.toMap(
                     field -> field + "_agg",
                     field -> Aggregation.of(a -> a.terms(
-                        TermsAggregation.of(t -> t.field(field + ".keyword").size(250))))
+                        TermsAggregation.of(t -> t.field(field + Constants.KEYWORD).size(250))))
                 ));
             searchRequestBuilder.aggregations(aggregationMap);
         }
@@ -643,7 +638,7 @@ public class EsUtilServiceImpl implements EsUtilService {
                 .field(Constants.TOPIC_ID)
                 .terms(terms -> terms.value(parentTopics.stream()
                     .map(FieldValue::of)
-                    .collect(Collectors.toList())))
+                    .toList()))
             ));
 
             // Create the terms aggregation
@@ -697,7 +692,7 @@ public class EsUtilServiceImpl implements EsUtilService {
 
             // Choose the script source based on the operation type.
             String scriptSource;
-            if (append) {
+            if (Boolean.TRUE.equals(append)) {
                 scriptSource = "if (ctx._source.containsKey('discussionCommunities') == false || ctx._source.discussionCommunities == null) {" +
                         "  ctx._source.discussionCommunities = [];" +
                         "} " +
@@ -743,7 +738,7 @@ public class EsUtilServiceImpl implements EsUtilService {
 
         } catch (ElasticsearchStatusException e) {
             if (e.status() == RestStatus.CONFLICT) {
-                logger.warn("Conflict detected, retrying attempt {} of {}", e);
+                logger.warn("Conflict detected, retrying attempt  of ", e);
             } else {
                 logger.error("Failed to upsert communityId for userId: {}", userId, e);
                 return false;
@@ -754,7 +749,7 @@ public class EsUtilServiceImpl implements EsUtilService {
         }
 
 
-        logger.error("Failed to upsert communityId for userId: {} after {} retries", userId);
+        logger.error("Failed to upsert communityId for userId: {} after retries", userId);
         return false;
     }
 
@@ -783,7 +778,7 @@ public class EsUtilServiceImpl implements EsUtilService {
             // Check if any documents match the query
             return searchResponse.hits().total().value() > 0;
         } catch (Exception e) {
-            log.error("Error checking community existence in Elasticsearch: {}", e);
+            log.error(ERROR_CHECKING_COMMUNITY_EXISTENCE_LOG, e.getMessage(), e);
             return false;
         }
     }
@@ -795,8 +790,8 @@ public class EsUtilServiceImpl implements EsUtilService {
         try {
             // Build the query
             Query query = Query.of(q -> q.bool(b -> b
-                .must(m -> m.term(t -> t.field(Constants.ORG_ID + ".keyword").value(orgId)))
-                .must(m -> m.term(t -> t.field(Constants.COMMUNITY_NAME + ".keyword").value(communityName)))
+                .must(m -> m.term(t -> t.field(Constants.ORG_ID + Constants.KEYWORD).value(orgId)))
+                .must(m -> m.term(t -> t.field(Constants.COMMUNITY_NAME + Constants.KEYWORD).value(communityName)))
                 .mustNot(m -> {
                     if (excludeCommunityId != null && !excludeCommunityId.isEmpty()) {
                         return m.term(t -> t.field("_id").value(excludeCommunityId));
@@ -820,7 +815,7 @@ public class EsUtilServiceImpl implements EsUtilService {
             return searchResponse.hits().total().value() > 0;
 
         } catch (Exception e) {
-            logger.error("Error checking community existence in Elasticsearch: {}", e);
+            logger.error(ERROR_CHECKING_COMMUNITY_EXISTENCE_LOG, e.getMessage(), e);
             return false;
         }
     }
@@ -847,7 +842,7 @@ public class EsUtilServiceImpl implements EsUtilService {
             // Check if any documents match the query
             return searchResponse.hits().total().value() > 0;
         } catch (Exception e) {
-            logger.error("Error checking community existence in Elasticsearch: {}", e);
+            logger.error(ERROR_CHECKING_COMMUNITY_EXISTENCE_LOG, e.getMessage(), e);
             return false;
         }
     }
@@ -881,7 +876,7 @@ public class EsUtilServiceImpl implements EsUtilService {
             // Check if any documents match the query
             return searchResponse.hits().total().value() > 0;
         } catch (Exception e) {
-            logger.error("Error checking community existence in Elasticsearch: {}", e);
+            logger.error(ERROR_CHECKING_COMMUNITY_EXISTENCE_LOG, e.getMessage(), e);
             return false;
         }
     }
@@ -889,25 +884,10 @@ public class EsUtilServiceImpl implements EsUtilService {
     @Override
     public SearchResponse popularCommunities(SearchRequest searchRequest, RequestOptions aDefault) {
         try {
-            SearchResponse<Object> response =
-                elasticsearchClient.search(searchRequest, Object.class);
-            return response;
+            return elasticsearchClient.search(searchRequest, Object.class);
         } catch (Exception e) {
             logger.error("Error while fetching details from elastic search");
             return null;
-        }
-    }
-
-
-    /**
-     * Helper method to process search hits and add them to the documents list.
-     */
-    private void processSearchHits(SearchResponse<Object> searchResponse, List<Map<String, Object>> documents) {
-        for (Hit<Object> hit : searchResponse.hits().hits()) {
-            if (hit.source() != null) {
-                JsonData source = (JsonData) hit.source();
-                documents.add(source.to(Map.class)); // Convert JsonData to Map
-            }
         }
     }
 
@@ -917,7 +897,6 @@ public class EsUtilServiceImpl implements EsUtilService {
         }
 
         try (InputStream schemaStream = JsonSchemaFactory.getInstance().getClass().getResourceAsStream(jsonFilePath)) {
-            ObjectMapper objectMapper = new ObjectMapper();
             Map<String, Object> schemaMap = objectMapper.readValue(schemaStream, new TypeReference<Map<String, Object>>() {});
             schemaCache.put(jsonFilePath, schemaMap);
             return schemaMap;

@@ -6,12 +6,6 @@ import com.igot.cb.community.service.UserService;
 import com.igot.cb.pores.exceptions.CustomException;
 import com.igot.cb.pores.util.Constants;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.ObjectUtils;
@@ -21,6 +15,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -40,7 +40,7 @@ public class UserServiceImpl implements UserService {
   @Override
   public List<Object> fetchUserFromprimary(List<String> userIds) {
     logger.info("UserService::fetchUserFromprimary:inside");
-    List<Object> userList = new ArrayList<>();
+    List<Object> userList;
     Map<String, Object> propertyMap = new HashMap<>();
     propertyMap.put(Constants.ID, userIds);
     List<Map<String, Object>> userInfoList = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
@@ -78,7 +78,7 @@ public class UserServiceImpl implements UserService {
                     && StringUtils.isNotBlank(
                     (String) profileDetailsMap.get(Constants.PROFILE_IMG))) {
                   userMap.put(Constants.PROFILE_IMG_KEY,
-                      (String) profileDetailsMap.get(Constants.PROFILE_IMG));
+                       profileDetailsMap.get(Constants.PROFILE_IMG));
                 }
                 if (profileDetailsMap.containsKey(Constants.PROFESSIONAL_DETAILS)
                     && ObjectUtils.isNotEmpty(
@@ -87,24 +87,15 @@ public class UserServiceImpl implements UserService {
                   Object professionalDetailsObj = profileDetailsMap.get(
                       Constants.PROFESSIONAL_DETAILS);
 
-                  if (professionalDetailsObj instanceof List<?>) {
-                    List<?> professionalDetailsList = (List<?>) professionalDetailsObj;
+                  if (professionalDetailsObj instanceof List<?> professionalDetailsList
+                      && !professionalDetailsList.isEmpty()
+                      && professionalDetailsList.get(0) instanceof Map<?, ?> firstEntry) {
 
-                    if (!professionalDetailsList.isEmpty()
-                        && professionalDetailsList.get(0) instanceof Map<?, ?>) {
-                      Map<?, ?> firstEntry = (Map<?, ?>) professionalDetailsList.get(
-                          0);
+                    Object designationObj = firstEntry.get(
+                        Constants.DESIGNATION);
 
-                      Object designationObj = firstEntry.get(
-                          Constants.DESIGNATION);
-
-                      if (designationObj instanceof String) {
-                        String designation = (String) designationObj;
-
-                        if (StringUtils.isNotBlank(designation)) {
-                          userMap.put(Constants.DESIGNATION_KEY, designation);
-                        }
-                      }
+                    if (designationObj instanceof String designation && StringUtils.isNotBlank(designation)) {
+                      userMap.put(Constants.DESIGNATION_KEY, designation);
                     }
                   }
                 }
@@ -114,7 +105,7 @@ public class UserServiceImpl implements UserService {
                     (String) profileDetailsMap.get(Constants.PROFILE_STATUS_KEY))) {
 
                   userMap.put(Constants.PROFILE_STATUS,
-                      (String) profileDetailsMap.get(Constants.PROFILE_STATUS_KEY));
+                       profileDetailsMap.get(Constants.PROFILE_STATUS_KEY));
                 }
 
               }

@@ -7,7 +7,6 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
-import org.springframework.stereotype.Component;
 
 /**
  * @author Mahesh RV
@@ -42,6 +41,7 @@ public class PropertiesCache {
             try {
                 configProp.load(in);
             } catch (IOException e) {
+                logger.error("Error loading properties from file: {}", file, e);
             }
         }
     }

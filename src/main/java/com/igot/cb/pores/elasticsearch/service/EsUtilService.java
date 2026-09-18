@@ -5,7 +5,6 @@ import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.igot.cb.pores.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.pores.elasticsearch.dto.SearchResult;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
 
 import org.elasticsearch.client.RequestOptions;
@@ -16,14 +15,14 @@ import java.util.List;
 import java.util.Map;
 
 public interface EsUtilService {
-  String addDocument(String esIndexName, String type, String id, Map<String, Object> document, String JsonFilePath);
+  String addDocument(String esIndexName, String type, String id, Map<String, Object> document, String jsonFilePath);
 
-  String updateDocument(String index, String indexType, String entityId, Map<String, Object> document, String JsonFilePath);
+  String updateDocument(String index, String indexType, String entityId, Map<String, Object> document, String jsonFilePath);
 
   void deleteDocument(String documentId, String esIndexName);
 
 
-  SearchResult searchDocuments(String esIndexName, SearchCriteria searchCriteria) throws Exception;
+  SearchResult searchDocuments(String esIndexName, SearchCriteria searchCriteria);
 
 
   public BulkResponse saveAll(String esIndexName, List<JsonNode> entities) throws IOException;

@@ -56,7 +56,6 @@ public class NotificationServiceImpl implements NotificationService {
         Arrays.asList(Constants.PROFILE_DETAILS, Constants.FIRST_NAME, Constants.ID), null);
     // Create senderUserMap
     Map<String, Map<String, Object>> senderUserMap = new HashMap<>();
-    List<String> emailResponseList = new ArrayList<>();
     Map<String, Map<String, Object>> userListMap = userList.stream()
         .collect(Collectors.toMap(
             userInfo -> (String) userInfo.get(Constants.ID), // Key: userId
@@ -75,10 +74,7 @@ public class NotificationServiceImpl implements NotificationService {
                       .filter(Map.class::isInstance)
                       .map(Map.class::cast)
                       .map(personalDetails -> personalDetails.get(Constants.PRIMARY_EMAIL))
-                      .ifPresent(email -> {
-                        userMap.put(Constants.PRIMARY_EMAIL, email);
-                        emailResponseList.add((String) email);
-                      });
+                      .ifPresent(email -> userMap.put(Constants.PRIMARY_EMAIL, email));
                 } catch (Exception e) {
                   logger.error("Error processing user profile details:", e);
                   throw new CustomException(Constants.ERROR, "Error while processing",

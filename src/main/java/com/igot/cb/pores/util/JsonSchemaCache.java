@@ -1,5 +1,6 @@
 package com.igot.cb.pores.util;
 
+import com.igot.cb.pores.exceptions.CustomException;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
@@ -8,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,7 +26,9 @@ public class JsonSchemaCache {
       log.info("Successfully loaded schema file from path: {}", schemaPath);
       return schema;
     } catch (Exception e) {
-      throw new RuntimeException("Failed to load JSON schema: " + schemaPath, e);
+      log.error("Failed to load JSON schema: {}", schemaPath, e);
+      throw new CustomException(Constants.ERROR, "Failed to load JSON schema: " + schemaPath,
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

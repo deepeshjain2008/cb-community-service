@@ -3,7 +3,6 @@ package com.igot.cb.pores.util;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.igot.cb.pores.exceptions.CustomException;
 import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.ValidationMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -12,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.io.InputStream;
 import java.util.Set;
 
 @Slf4j
@@ -29,7 +27,6 @@ public class PayloadValidation {
   }
 
   public void validatePayload(String schemaKey, JsonNode payload) {
-//    log.info("PayloadValidation::validatePayload:inside");
     try {
       JsonSchema schema = schemaCache.getSchema(schemaKey);
 
@@ -58,7 +55,7 @@ public class PayloadValidation {
       for (ValidationMessage message : validationMessages) {
         errorMessage.append(message.getMessage()).append("\n");
       }
-      logger.error("Validation Error", errorMessage.toString());
+      logger.error("Validation Error: {}", errorMessage);
       throw new CustomException("Validation Error", errorMessage.toString(), HttpStatus.BAD_REQUEST);
     }
   }

@@ -277,7 +277,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 return response;
             }
         } catch (Exception e) {
-            log.error("error occured while creating commmunity:" + e);
+            log.error("error occured while creating commmunity: {}", e.getMessage(), e);
             throw new CustomException(Constants.ERROR_WHILE_PROCESSING, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -547,7 +547,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
             Map<String, Object> propertyMap = new HashMap<>();
             propertyMap.put(Constants.USER_ID, userId);
-            propertyMap.put(Constants.CommunityId, communityId);
+            propertyMap.put(Constants.COMMUNITY_ID, communityId);
             //kafka event :: es updation: upsert (postgres and es )
             List<Map<String, Object>> userCommunityDetails = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER_COMMUNITY_TABLE, propertyMap, null, 1);
@@ -896,7 +896,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                     // Convert the stringified JSON to a User object using ObjectMapper
                     return objectMapper.readValue(stringifiedJson, Object.class); // You can map this to a specific User type if needed
                 } catch (Exception e) {
-                    log.error("Failed to convert String to Json: String value: " + stringifiedJson, e);
+                    log.error("Failed to convert String to Json: String value: {}", stringifiedJson, e);
                     return null; // Return null in case of error
                 }
             })
@@ -929,7 +929,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
             Map<String, Object> propertyMap = new HashMap<>();
             propertyMap.put(Constants.USER_ID, userId);
-            propertyMap.put(Constants.CommunityId, communityId);
+            propertyMap.put(Constants.COMMUNITY_ID, communityId);
             List<Map<String, Object>> userCommunityDetails = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER_COMMUNITY_TABLE, propertyMap, null, 1);
             if (!CollectionUtils.isEmpty(userCommunityDetails)) {
@@ -1670,8 +1670,6 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 reportCount >= cbServerProperties.getReporCommunityUserLimit() ? Constants.SUSPENDED
                     : Constants.REPORTED;
 
-            Map<String, Object> statusUpdateData = new HashMap<>();
-            statusUpdateData.put(Constants.STATUS, status);
             ObjectNode jsonNode = objectMapper.createObjectNode();
 
             if (!data.get(Constants.STATUS).textValue().equals(status)) {
@@ -1729,7 +1727,11 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             file = new File(System.currentTimeMillis() + "_" + mFile.getOriginalFilename());
 
-            file.createNewFile();
+            if (!file.createNewFile()) {
+                throw new CustomException(Constants.ERROR,
+                    "Failed to create temporary file: " + file.getAbsolutePath(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+            }
             // Use try-with-resources to ensure FileOutputStream is closed
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 fos.write(mFile.getBytes());
@@ -2385,7 +2387,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         try {
             Map<String, Object> propertyMap = new HashMap<>();
             propertyMap.put(Constants.USER_ID, userId);
-            propertyMap.put(Constants.CommunityId, communityId);
+            propertyMap.put(Constants.COMMUNITY_ID, communityId);
             List<Map<String, Object>> userCommunityDetails =
                     cassandraOperation.getRecordsByPropertiesWithoutFiltering(
                             Constants.KEYSPACE_SUNBIRD,

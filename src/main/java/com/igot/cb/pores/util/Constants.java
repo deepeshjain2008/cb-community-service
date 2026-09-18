@@ -102,7 +102,6 @@ public class Constants {
     public static final String LAST_UPDATED_AT = "lastupdatedat";
     public static final String USER_DETAILS = "userDetails";
     public static final String USER_COUNT = "usersJoinedCount";
-    public static String CommunityId = "communityId";
     public static final String ALREADY_JOINED_COMMUNITY = "This user is already joined this community";
     public static final String API_COMMUNITY_JOIN = "api.community.join";
     public static final String API_COMMUNITY_LIST_USER = "api.community.list.of.joined";
@@ -179,7 +178,6 @@ public class Constants {
     public static final String REPORTED = "reported";
     public static final String COMMUNITY_REPORT_FAILED = "Failed to report discussion";
     public static final String REPORTED_BY = "reportedBy";
-    public static final String _DOC = "_doc";
     public static final String DISCUSSION_COMMUNITY_KEY = "discussionCommunities";
     public static final String COMMUNITY_UPLOAD_FILE = "api.community.uploadFile";
     public static final String COMMUNITY_FILE_EMPTY = "File is empty";

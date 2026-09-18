@@ -7,6 +7,9 @@ import java.util.UUID;
 
 public class ProjectUtil {
 
+    private ProjectUtil() {
+    }
+
     public static ApiResponse createDefaultResponse(String api) {
         ApiResponse response = new ApiResponse();
         response.setId(api);
