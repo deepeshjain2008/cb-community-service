@@ -11,6 +11,7 @@ import com.datastax.oss.driver.api.querybuilder.update.UpdateStart;
 import com.datastax.oss.driver.api.querybuilder.update.UpdateWithAssignments;
 import com.igot.cb.pores.util.ApiResponse;
 import com.igot.cb.pores.util.Constants;
+import com.igot.cb.transactional.exceptions.CassandraOperationException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.slf4j.Logger;
@@ -124,7 +125,7 @@ public class CassandraOperationImpl implements CassandraOperation {
             session.execute(statement);
             response.put(Constants.RESPONSE, Constants.SUCCESS);
         } catch (Exception e) {
-            throw new RuntimeException(
+            throw new CassandraOperationException(
                 String.format("Exception occurred while updating record to %s: %s", tableName, e.getMessage()), e);
         }
         return response;

@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.community.entity.CommunityCategory;
 import com.igot.cb.community.entity.CommunityEntity;
@@ -624,7 +625,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         ((ObjectNode) dataNode).put(Constants.UPDATED_ON, String.valueOf(currentTime));
         ((ObjectNode) dataNode).put(Constants.UPDATED_BY, userId);
         ((ObjectNode) dataNode).put(Constants.STATUS, status);
-        ((ObjectNode) dataNode).put(Constants.COMMUNITY_ID, communityEntity.getCommunityId());
+        ((ObjectNode) dataNode).set(Constants.COMMUNITY_ID, TextNode.valueOf(communityEntity.getCommunityId()));
         if (dataNode.hasNonNull(Constants.MODERATORS) && dataNode.get(Constants.MODERATORS)
             .isArray()) {
             JsonNode moderatorsNode = dataNode.get(Constants.MODERATORS);

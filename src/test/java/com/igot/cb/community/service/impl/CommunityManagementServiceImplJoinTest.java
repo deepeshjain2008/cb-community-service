@@ -284,12 +284,12 @@ class CommunityManagementServiceImplJoinTest {
 
     @Test
     void communitiesJoinedByUserSkipsRecordWhenStatusFalse() {
-        Map<String, Object> record = new HashMap<>();
-        record.put(Constants.STATUS, false);
-        record.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
+        Map<String, Object> row = new HashMap<>();
+        row.put(Constants.STATUS, false);
+        row.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_COMMUNITY_TABLE), any(Map.class), anyList(), eq(null)))
-            .thenReturn(List.of(record));
+            .thenReturn(List.of(row));
 
         ApiResponse response = service.communitiesJoinedByUser(TOKEN);
 
@@ -298,12 +298,12 @@ class CommunityManagementServiceImplJoinTest {
 
     @Test
     void communitiesJoinedByUserReturnsFromCache() {
-        Map<String, Object> record = new HashMap<>();
-        record.put(Constants.STATUS, true);
-        record.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
+        Map<String, Object> row = new HashMap<>();
+        row.put(Constants.STATUS, true);
+        row.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_COMMUNITY_TABLE), any(Map.class), anyList(), eq(null)))
-            .thenReturn(List.of(record));
+            .thenReturn(List.of(row));
         when(cacheService.getCache(COMMUNITY_ID)).thenReturn("{\"communityName\":\"Cached\"}");
 
         ApiResponse response = service.communitiesJoinedByUser(TOKEN);
@@ -313,12 +313,12 @@ class CommunityManagementServiceImplJoinTest {
 
     @Test
     void communitiesJoinedByUserFallsBackToPrimaryWhenCacheMiss() {
-        Map<String, Object> record = new HashMap<>();
-        record.put(Constants.STATUS, true);
-        record.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
+        Map<String, Object> row = new HashMap<>();
+        row.put(Constants.STATUS, true);
+        row.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_COMMUNITY_TABLE), any(Map.class), anyList(), eq(null)))
-            .thenReturn(List.of(record));
+            .thenReturn(List.of(row));
         when(cacheService.getCache(COMMUNITY_ID)).thenReturn(null);
         when(communityEngagementRepository.findByCommunityIdAndIsActive(COMMUNITY_ID, true))
             .thenReturn(Optional.of(communityEntity(communityData(false))));
@@ -330,12 +330,12 @@ class CommunityManagementServiceImplJoinTest {
 
     @Test
     void communitiesJoinedByUserThrowsCustomExceptionForInvalidCachedJson() {
-        Map<String, Object> record = new HashMap<>();
-        record.put(Constants.STATUS, true);
-        record.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
+        Map<String, Object> row = new HashMap<>();
+        row.put(Constants.STATUS, true);
+        row.put(Constants.COMMUNITY_ID_LOWERCASE, COMMUNITY_ID);
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_COMMUNITY_TABLE), any(Map.class), anyList(), eq(null)))
-            .thenReturn(List.of(record));
+            .thenReturn(List.of(row));
         when(cacheService.getCache(COMMUNITY_ID)).thenReturn("not-valid-json");
 
         assertThrows(CustomException.class, () -> service.communitiesJoinedByUser(TOKEN));

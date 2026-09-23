@@ -37,7 +37,7 @@ public class RedisConfig {
   @Value("${spring.redis.data.port}")
   private int redisDataPort;
 
-  private static final long redisTimeout = 60000;
+  private static final long REDIS_TIMEOUT = 60000;
 
   @Bean(name = Constants.REDIS_CONNECTION_FACTORY)
   public RedisConnectionFactory redisConnectionFactory() {
@@ -46,7 +46,7 @@ public class RedisConfig {
     config.setPort(redisPort);
     config.setDatabase(0);
     LettuceClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
-            .commandTimeout(Duration.ofMillis(redisTimeout))
+            .commandTimeout(Duration.ofMillis(REDIS_TIMEOUT))
             .poolConfig(buildPoolConfig())
             .build();
     return new LettuceConnectionFactory(config, clientConfig);
@@ -60,7 +60,7 @@ public class RedisConfig {
     config.setPort(redisDataPort);
     config.setDatabase(0);
     LettuceClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
-            .commandTimeout(Duration.ofMillis(redisTimeout))
+            .commandTimeout(Duration.ofMillis(REDIS_TIMEOUT))
             .poolConfig(buildPoolConfig())
             .build();
     return new LettuceConnectionFactory(config, clientConfig);

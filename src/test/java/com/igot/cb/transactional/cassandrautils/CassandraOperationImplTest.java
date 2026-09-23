@@ -1,6 +1,7 @@
 package com.igot.cb.transactional.cassandrautils;
 
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.igot.cb.transactional.exceptions.CassandraOperationException;
 import com.datastax.oss.driver.api.core.cql.BoundStatement;
 import com.datastax.oss.driver.api.core.cql.ColumnDefinitions;
 import com.datastax.oss.driver.api.core.cql.PreparedStatement;
@@ -163,7 +164,7 @@ class CassandraOperationImplTest {
         Map<String, Object> compositeKey = new HashMap<>();
         compositeKey.put("id", "1");
 
-        assertThrows(RuntimeException.class, () ->
+        assertThrows(CassandraOperationException.class, () ->
             cassandraOperation.updateRecord("test_keyspace", "test_table", updateAttributes, compositeKey));
     }
 }

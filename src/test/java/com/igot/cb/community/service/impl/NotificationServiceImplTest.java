@@ -74,11 +74,11 @@ class NotificationServiceImplTest {
     }
 
     private Map<String, Object> userRecord(String id, String firstName, String profileDetailsJson) {
-        Map<String, Object> record = new HashMap<>();
-        record.put(Constants.ID, id);
-        record.put(Constants.FIRST_NAME, firstName);
-        record.put(Constants.PROFILE_DETAILS, profileDetailsJson);
-        return record;
+        Map<String, Object> row = new HashMap<>();
+        row.put(Constants.ID, id);
+        row.put(Constants.FIRST_NAME, firstName);
+        row.put(Constants.PROFILE_DETAILS, profileDetailsJson);
+        return row;
     }
 
     private void stubUserRecords(List<Map<String, Object>> records) {

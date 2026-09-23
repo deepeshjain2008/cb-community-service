@@ -130,9 +130,9 @@ class CommunityManagementServiceImplTest {
     }
 
     private List<Map<String, Object>> userRecords(String rootOrgId) {
-        Map<String, Object> record = new HashMap<>();
-        record.put(Constants.USER_ROOT_ORG_ID, rootOrgId);
-        return List.of(record);
+        Map<String, Object> row = new HashMap<>();
+        row.put(Constants.USER_ROOT_ORG_ID, rootOrgId);
+        return List.of(row);
     }
 
     private CommunityCategory category() {
