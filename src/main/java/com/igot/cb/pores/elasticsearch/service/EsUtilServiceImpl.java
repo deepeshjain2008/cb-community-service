@@ -33,6 +33,7 @@ import com.igot.cb.pores.exceptions.CustomException;
 import com.igot.cb.pores.util.CbServerProperties;
 import com.igot.cb.pores.util.Constants;
 import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -92,7 +93,7 @@ public class EsUtilServiceImpl implements EsUtilService {
             String esIndexName, String type, String id, Map<String, Object> document, String jsonFilePath) {
         logger.info("EsUtilServiceImpl :: addDocument");
         try {
-            JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance();
+            JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V4);
             InputStream schemaStream = schemaFactory.getClass().getResourceAsStream(jsonFilePath);
             Map<String, Object> map = objectMapper.readValue(schemaStream,
                 new TypeReference<Map<String, Object>>() {
@@ -123,7 +124,7 @@ public class EsUtilServiceImpl implements EsUtilService {
     public String updateDocument(
             String index, String indexType, String entityId, Map<String, Object> updatedDocument, String jsonFilePath) {
         try {
-            JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance();
+            JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V4);
             InputStream schemaStream = schemaFactory.getClass().getResourceAsStream(jsonFilePath);
             Map<String, Object> map = objectMapper.readValue(schemaStream,
                     new TypeReference<Map<String, Object>>() {
@@ -908,7 +909,7 @@ public class EsUtilServiceImpl implements EsUtilService {
     }
 
     @Override
-    public SearchResponse popularCommunities(SearchRequest searchRequest, RequestOptions aDefault) {
+    public SearchResponse<Object> popularCommunities(SearchRequest searchRequest, RequestOptions aDefault) {
         try {
             return elasticsearchClient.search(searchRequest, Object.class);
         } catch (Exception e) {
@@ -922,7 +923,7 @@ public class EsUtilServiceImpl implements EsUtilService {
             return schemaCache.get(jsonFilePath);
         }
 
-        try (InputStream schemaStream = JsonSchemaFactory.getInstance().getClass().getResourceAsStream(jsonFilePath)) {
+        try (InputStream schemaStream = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V4).getClass().getResourceAsStream(jsonFilePath)) {
             Map<String, Object> schemaMap = objectMapper.readValue(schemaStream, new TypeReference<Map<String, Object>>() {});
             schemaCache.put(jsonFilePath, schemaMap);
             return schemaMap;

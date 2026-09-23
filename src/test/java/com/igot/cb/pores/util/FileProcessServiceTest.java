@@ -66,7 +66,8 @@ class FileProcessServiceTest {
     void processCsvAndSendMessageThrowsCustomExceptionOnMalformedCsv() {
         String malformed = "name,email\n\"unclosed quote,value\n";
 
+        InputStream stream = asStream(malformed);
         assertThrows(CustomException.class,
-            () -> fileProcessService.processCsvAndSendMessage(asStream(malformed)));
+            () -> fileProcessService.processCsvAndSendMessage(stream));
     }
 }

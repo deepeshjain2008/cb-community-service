@@ -7,6 +7,9 @@ import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -15,6 +18,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -112,9 +116,9 @@ class UserServiceImplTest {
         assertEquals("", userMap.get(Constants.PROFILE_IMG_KEY));
     }
 
-    @Test
-    void fetchUserFromprimarySkipsDesignationWhenProfessionalDetailsMissing() {
-        String profileDetails = "{\"profileImageUrl\":\"http://img\"}";
+    @ParameterizedTest(name = "fetchUserFromprimarySkipsDesignationWhen_{0}")
+    @MethodSource("designationSkippedProfileDetails")
+    void fetchUserFromprimarySkipsDesignation(String scenario, String profileDetails) {
         stubCassandraRecords(List.of(userInfo("u1", "Alice", "org1", profileDetails)));
 
         List<Object> result = userService.fetchUserFromprimary(Arrays.asList("u1"));
@@ -123,59 +127,15 @@ class UserServiceImplTest {
         assertEquals("", userMap.get(Constants.DESIGNATION_KEY));
     }
 
-    @Test
-    void fetchUserFromprimarySkipsDesignationWhenProfessionalDetailsEmpty() {
-        String profileDetails = "{\"professionalDetails\":[]}";
-        stubCassandraRecords(List.of(userInfo("u1", "Alice", "org1", profileDetails)));
-
-        List<Object> result = userService.fetchUserFromprimary(Arrays.asList("u1"));
-
-        Map<String, Object> userMap = (Map<String, Object>) result.get(0);
-        assertEquals("", userMap.get(Constants.DESIGNATION_KEY));
-    }
-
-    @Test
-    void fetchUserFromprimarySkipsDesignationWhenProfessionalDetailsNotAList() {
-        String profileDetails = "{\"professionalDetails\":\"not-a-list\"}";
-        stubCassandraRecords(List.of(userInfo("u1", "Alice", "org1", profileDetails)));
-
-        List<Object> result = userService.fetchUserFromprimary(Arrays.asList("u1"));
-
-        Map<String, Object> userMap = (Map<String, Object>) result.get(0);
-        assertEquals("", userMap.get(Constants.DESIGNATION_KEY));
-    }
-
-    @Test
-    void fetchUserFromprimarySkipsDesignationWhenFirstEntryNotAMap() {
-        String profileDetails = "{\"professionalDetails\":[\"not-a-map\"]}";
-        stubCassandraRecords(List.of(userInfo("u1", "Alice", "org1", profileDetails)));
-
-        List<Object> result = userService.fetchUserFromprimary(Arrays.asList("u1"));
-
-        Map<String, Object> userMap = (Map<String, Object>) result.get(0);
-        assertEquals("", userMap.get(Constants.DESIGNATION_KEY));
-    }
-
-    @Test
-    void fetchUserFromprimarySkipsDesignationWhenDesignationMissing() {
-        String profileDetails = "{\"professionalDetails\":[{\"other\":\"value\"}]}";
-        stubCassandraRecords(List.of(userInfo("u1", "Alice", "org1", profileDetails)));
-
-        List<Object> result = userService.fetchUserFromprimary(Arrays.asList("u1"));
-
-        Map<String, Object> userMap = (Map<String, Object>) result.get(0);
-        assertEquals("", userMap.get(Constants.DESIGNATION_KEY));
-    }
-
-    @Test
-    void fetchUserFromprimarySkipsDesignationWhenBlank() {
-        String profileDetails = "{\"professionalDetails\":[{\"designation\":\"   \"}]}";
-        stubCassandraRecords(List.of(userInfo("u1", "Alice", "org1", profileDetails)));
-
-        List<Object> result = userService.fetchUserFromprimary(Arrays.asList("u1"));
-
-        Map<String, Object> userMap = (Map<String, Object>) result.get(0);
-        assertEquals("", userMap.get(Constants.DESIGNATION_KEY));
+    private static Stream<Arguments> designationSkippedProfileDetails() {
+        return Stream.of(
+            Arguments.of("professionalDetailsMissing", "{\"profileImageUrl\":\"http://img\"}"),
+            Arguments.of("professionalDetailsEmpty", "{\"professionalDetails\":[]}"),
+            Arguments.of("professionalDetailsNotAList", "{\"professionalDetails\":\"not-a-list\"}"),
+            Arguments.of("firstEntryNotAMap", "{\"professionalDetails\":[\"not-a-map\"]}"),
+            Arguments.of("designationMissing", "{\"professionalDetails\":[{\"other\":\"value\"}]}"),
+            Arguments.of("designationBlank", "{\"professionalDetails\":[{\"designation\":\"   \"}]}")
+        );
     }
 
     @Test
@@ -193,6 +153,7 @@ class UserServiceImplTest {
     void fetchUserFromprimaryThrowsCustomExceptionForInvalidJson() {
         stubCassandraRecords(List.of(userInfo("u1", "Alice", "org1", "not-valid-json")));
 
-        assertThrows(CustomException.class, () -> userService.fetchUserFromprimary(Arrays.asList("u1")));
+        List<String> userIds = Arrays.asList("u1");
+        assertThrows(CustomException.class, () -> userService.fetchUserFromprimary(userIds));
     }
 }

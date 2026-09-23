@@ -196,7 +196,8 @@ class CommunityManagementServiceImplJoinTest {
         when(communityEngagementRepository.findByCommunityIdAndIsActive(COMMUNITY_ID, true))
             .thenThrow(new RuntimeException("db down"));
 
-        assertThrows(CustomException.class, () -> service.joinCommunity(joinRequest(), TOKEN));
+        Map<String, Object> request = joinRequest();
+        assertThrows(CustomException.class, () -> service.joinCommunity(request, TOKEN));
     }
 
     // ---- unJoinCommunity ----
@@ -268,7 +269,8 @@ class CommunityManagementServiceImplJoinTest {
         when(communityEngagementRepository.findByCommunityIdAndIsActive(COMMUNITY_ID, true))
             .thenThrow(new RuntimeException("db down"));
 
-        assertThrows(CustomException.class, () -> service.unJoinCommunity(joinRequest(), TOKEN));
+        Map<String, Object> request = joinRequest();
+        assertThrows(CustomException.class, () -> service.unJoinCommunity(request, TOKEN));
     }
 
     // ---- communitiesJoinedByUser ----
@@ -386,7 +388,7 @@ class CommunityManagementServiceImplJoinTest {
     }
 
     @Test
-    void listOfUsersJoinedReturnsSuccessWithCacheHit() throws Exception {
+    void listOfUsersJoinedReturnsSuccessWithCacheHit() {
         when(cacheService.getListSize(anyString())).thenReturn(5L);
         when(cacheService.getPaginatedUsersFromHash(anyString(), eq(0), eq(10)))
             .thenReturn(List.of("user:u1"));
@@ -400,7 +402,7 @@ class CommunityManagementServiceImplJoinTest {
     }
 
     @Test
-    void listOfUsersJoinedFallsBackToCassandraForMissingUsers() throws Exception {
+    void listOfUsersJoinedFallsBackToCassandraForMissingUsers() {
         when(cacheService.getListSize(anyString())).thenReturn(5L);
         when(cacheService.getPaginatedUsersFromHash(anyString(), eq(0), eq(10)))
             .thenReturn(List.of("user:u1"));
@@ -429,7 +431,7 @@ class CommunityManagementServiceImplJoinTest {
     }
 
     @Test
-    void listOfUsersJoinedRefetchesListSizeWhenInitiallyZeroButPrimaryHasData() throws Exception {
+    void listOfUsersJoinedRefetchesListSizeWhenInitiallyZeroButPrimaryHasData() {
         when(cacheService.getListSize(anyString())).thenReturn(0L, 5L);
         Map<String, Object> lookupRecord = new HashMap<>();
         lookupRecord.put(Constants.STATUS, true);
@@ -449,7 +451,7 @@ class CommunityManagementServiceImplJoinTest {
     }
 
     @Test
-    void listOfUsersJoinedFallsBackToPrimaryWhenPaginatedHashEmpty() throws Exception {
+    void listOfUsersJoinedFallsBackToPrimaryWhenPaginatedHashEmpty() {
         when(cacheService.getListSize(anyString())).thenReturn(5L);
         Map<String, Object> lookupRecord = new HashMap<>();
         lookupRecord.put(Constants.STATUS, true);
@@ -484,7 +486,7 @@ class CommunityManagementServiceImplJoinTest {
     }
 
     @Test
-    void listOfUsersJoinedCleansLiteralNullDesignationString() throws Exception {
+    void listOfUsersJoinedCleansLiteralNullDesignationString() {
         when(cacheService.getListSize(anyString())).thenReturn(5L);
         when(cacheService.getPaginatedUsersFromHash(anyString(), eq(0), eq(10)))
             .thenReturn(List.of("user:u1"));
@@ -497,13 +499,14 @@ class CommunityManagementServiceImplJoinTest {
     }
 
     @Test
-    void listOfUsersJoinedHandlesInvalidJsonFromCache() throws Exception {
+    void listOfUsersJoinedHandlesInvalidJsonFromCache() {
         when(cacheService.getListSize(anyString())).thenReturn(5L);
         when(cacheService.getPaginatedUsersFromHash(anyString(), eq(0), eq(10)))
             .thenReturn(List.of("user:u1"));
         when(cacheService.hget(anyList())).thenReturn(new ArrayList<>(List.of("not-valid-json")));
 
-        assertThrows(CustomException.class, () -> service.listOfUsersJoined(TOKEN, listUsersPayload()));
+        Map<String, Object> payload = listUsersPayload();
+        assertThrows(CustomException.class, () -> service.listOfUsersJoined(TOKEN, payload));
     }
 
     @Test
@@ -546,7 +549,8 @@ class CommunityManagementServiceImplJoinTest {
     void listOfUsersJoinedThrowsCustomExceptionOnUnexpectedError() {
         when(cacheService.getListSize(anyString())).thenThrow(new RuntimeException("redis down"));
 
-        assertThrows(CustomException.class, () -> service.listOfUsersJoined(TOKEN, listUsersPayload()));
+        Map<String, Object> payload = listUsersPayload();
+        assertThrows(CustomException.class, () -> service.listOfUsersJoined(TOKEN, payload));
     }
 
     // ---- listAllCommunitiesJoinedByUser ----
@@ -680,7 +684,6 @@ class CommunityManagementServiceImplJoinTest {
         when(communityEngagementRepository.findByCommunityIdAndIsActive(COMMUNITY_ID, true))
             .thenReturn(Optional.of(communityEntity(communityData(false))));
 
-        Map<String, Object> newUserProp = new HashMap<>();
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_COMMUNITY_TABLE), any(Map.class), eq(null), eq(1)))
             .thenReturn(List.of())
@@ -731,7 +734,8 @@ class CommunityManagementServiceImplJoinTest {
         when(communityEngagementRepository.findByCommunityIdAndIsActive(COMMUNITY_ID, true))
             .thenThrow(new RuntimeException("db down"));
 
-        assertThrows(CustomException.class, () -> service.adminJoinCommunity(adminRequest(List.of("u1")), TOKEN));
+        Map<String, Object> request = adminRequest(List.of("u1"));
+        assertThrows(CustomException.class, () -> service.adminJoinCommunity(request, TOKEN));
     }
 
     @Test
@@ -809,6 +813,7 @@ class CommunityManagementServiceImplJoinTest {
         when(communityEngagementRepository.findByCommunityIdAndIsActive(COMMUNITY_ID, true))
             .thenThrow(new RuntimeException("db down"));
 
-        assertThrows(CustomException.class, () -> service.adminUnjoinCommunity(adminRequest(List.of("u1")), TOKEN));
+        Map<String, Object> request = adminRequest(List.of("u1"));
+        assertThrows(CustomException.class, () -> service.adminUnjoinCommunity(request, TOKEN));
     }
 }

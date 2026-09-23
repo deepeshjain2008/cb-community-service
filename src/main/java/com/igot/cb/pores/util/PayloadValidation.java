@@ -43,8 +43,7 @@ public class PayloadValidation {
         validateObject(schema, payload);
       }
     } catch (Exception e) {
-      logger.error("Failed to validate payload", e);
-      throw new CustomException("Failed to validate payload", e.getMessage(), HttpStatus.BAD_REQUEST);
+      throw new CustomException("Failed to validate payload", e.getMessage(), HttpStatus.BAD_REQUEST, e);
     }
   }
 

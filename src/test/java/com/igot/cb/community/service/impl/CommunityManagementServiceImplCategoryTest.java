@@ -11,7 +11,6 @@ import com.igot.cb.community.repository.CommunityEngagementRepository;
 import com.igot.cb.community.service.NotificationService;
 import com.igot.cb.community.service.UserService;
 import com.igot.cb.pores.cache.CacheService;
-import com.igot.cb.pores.elasticsearch.dto.FacetDTO;
 import com.igot.cb.pores.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.pores.elasticsearch.dto.SearchResult;
 import com.igot.cb.pores.elasticsearch.service.EsUtilService;
@@ -39,7 +38,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -175,7 +173,7 @@ class CommunityManagementServiceImplCategoryTest {
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_USER), any(Map.class), any(List.class), eq(2)))
             .thenReturn(userRootOrgRecords("org-1"));
         when(categoryRepository.findByParentIdAndCategoryNameAndDepartmentIdAndIsActive(
-            eq(1), eq("Cat A"), eq("dept-1"), eq(true))).thenReturn(savedCategory());
+            1, "Cat A", "dept-1", true)).thenReturn(savedCategory());
 
         ApiResponse response = service.categoryCreate(categoryDetails(true), TOKEN);
 
@@ -189,7 +187,7 @@ class CommunityManagementServiceImplCategoryTest {
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_USER), any(Map.class), any(List.class), eq(2)))
             .thenReturn(userRootOrgRecords("org-1"));
         when(categoryRepository.findByParentIdAndCategoryNameAndDepartmentIdAndIsActive(
-            eq(1), eq("Cat A"), eq("dept-1"), eq(true))).thenReturn(null);
+            1, "Cat A", "dept-1", true)).thenReturn(null);
         when(categoryRepository.save(any(CommunityCategory.class))).thenReturn(savedCategory());
 
         ApiResponse response = service.categoryCreate(categoryDetails(true), TOKEN);
@@ -206,7 +204,8 @@ class CommunityManagementServiceImplCategoryTest {
         when(categoryRepository.findByCategoryNameAndIsActive("Cat A", true))
             .thenThrow(new RuntimeException("db down"));
 
-        assertThrows(CustomException.class, () -> service.categoryCreate(categoryDetails(false), TOKEN));
+        JsonNode details = categoryDetails(false);
+        assertThrows(CustomException.class, () -> service.categoryCreate(details, TOKEN));
     }
 
     // ---- readCategory ----
@@ -464,7 +463,8 @@ class CommunityManagementServiceImplCategoryTest {
         when(categoryRepository.findByCategoryIdAndIsActive(10, true))
             .thenThrow(new RuntimeException("db down"));
 
-        assertThrows(CustomException.class, () -> service.listOfSubCategory(subCategoryCriteria()));
+        SearchCriteria criteria = subCategoryCriteria();
+        assertThrows(CustomException.class, () -> service.listOfSubCategory(criteria));
     }
 
     // ---- lisAllCategoryWithSubCat ----

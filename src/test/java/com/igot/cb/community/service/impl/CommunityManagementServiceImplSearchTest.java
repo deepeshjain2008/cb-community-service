@@ -157,7 +157,8 @@ class CommunityManagementServiceImplSearchTest {
     void searchCommunityThrowsCustomExceptionOnUnexpectedError() {
         when(valueOperations.get(any(String.class))).thenThrow(new RuntimeException("redis down"));
 
-        assertThrows(CustomException.class, () -> service.searchCommunity(criteria()));
+        SearchCriteria criteria = criteria();
+        assertThrows(CustomException.class, () -> service.searchCommunity(criteria));
     }
 
     // ---- searchTopic ----
@@ -196,7 +197,8 @@ class CommunityManagementServiceImplSearchTest {
     void searchTopicThrowsCustomExceptionOnUnexpectedError() {
         when(valueOperations.get(any(String.class))).thenThrow(new RuntimeException("redis down"));
 
-        assertThrows(CustomException.class, () -> service.searchTopic(criteria()));
+        SearchCriteria criteria = criteria();
+        assertThrows(CustomException.class, () -> service.searchTopic(criteria));
     }
 
     // ---- searchCommunityFromPrimary ----

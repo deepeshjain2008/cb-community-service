@@ -9,6 +9,7 @@ import org.apache.commons.collections.MapUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -119,7 +120,7 @@ public class OutboundRequestHandlerServiceImpl {
   public Object fetchUsingGetWithHeaders(String uri, Map<String, String> headersValues) {
     ObjectMapper mapper = new ObjectMapper();
     mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-    ResponseEntity<Map> response = null;
+    ResponseEntity<Map<String, Object>> response = null;
     try {
       if (log.isDebugEnabled()) {
         log.debug(DEBUG_LOG_FORMAT_SIX_ARGS, this.getClass().getCanonicalName(), Constants.FETCH_RESULT_CONSTANT,
@@ -129,8 +130,9 @@ public class OutboundRequestHandlerServiceImpl {
       if (!CollectionUtils.isEmpty(headersValues)) {
         headersValues.forEach(headers::set);
       }
-      HttpEntity entity = new HttpEntity(headers);
-      response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class);
+      HttpEntity<Void> entity = new HttpEntity<>(headers);
+      response = restTemplate.exchange(uri, HttpMethod.GET, entity,
+          new ParameterizedTypeReference<Map<String, Object>>() {});
       return response.getBody();
     } catch (Exception e) {
       log.error(e.getMessage());

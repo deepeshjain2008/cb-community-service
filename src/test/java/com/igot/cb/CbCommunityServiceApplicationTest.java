@@ -8,9 +8,7 @@ import org.springframework.web.client.RestTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
 
 class CbCommunityServiceApplicationTest {
 
@@ -18,7 +16,7 @@ class CbCommunityServiceApplicationTest {
     void mainDelegatesToSpringApplicationRun() {
         String[] args = new String[]{"--server.port=8080"};
         try (MockedStatic<SpringApplication> springApplication = mockStatic(SpringApplication.class)) {
-            springApplication.when(() -> SpringApplication.run(eq(CbCommunityServiceApplication.class), eq(args)))
+            springApplication.when(() -> SpringApplication.run(CbCommunityServiceApplication.class, args))
                 .thenReturn(null);
 
             CbCommunityServiceApplication.main(args);

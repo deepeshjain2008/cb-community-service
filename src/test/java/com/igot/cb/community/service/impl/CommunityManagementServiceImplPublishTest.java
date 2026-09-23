@@ -39,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -108,7 +107,7 @@ class CommunityManagementServiceImplPublishTest {
         when(accessTokenValidator.verifyUserToken("token")).thenReturn("user1");
         JsonNode details = communityDetails("c1", "org1", "Name", null);
         org.mockito.Mockito.doThrow(new CustomException(Constants.ERROR, "invalid payload", HttpStatus.BAD_REQUEST))
-            .when(payloadValidation).validatePayload(eq(Constants.COMMUNITY_PUBLISH_PAYLOAD_VALIDATION_FILE), eq(details));
+            .when(payloadValidation).validatePayload(Constants.COMMUNITY_PUBLISH_PAYLOAD_VALIDATION_FILE, details);
 
         ApiResponse response = service.publish(details, "token");
 
@@ -182,7 +181,24 @@ class CommunityManagementServiceImplPublishTest {
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         verify(notificationService, times(1)).sendNotification(
-            eq(List.of("mod1", "mod2")), eq("c1"), eq("user1"), eq("Name"));
+            List.of("mod1", "mod2"), "c1", "user1", "Name");
+    }
+
+    @Test
+    void publishSkipsNotificationWhenModeratorsIsNotAnArray() throws Exception {
+        when(accessTokenValidator.verifyUserToken("token")).thenReturn("user1");
+        String nonArrayModerators = "{\"moderatorId\":\"mod1\"}";
+        JsonNode details = communityDetails("c1", "org1", "Name", nonArrayModerators);
+        when(esUtilService.isDuplicateCommunity(anyString(), anyString(), anyString())).thenReturn(false);
+        when(esUtilService.doesCommunityNameExistForPublish(anyString(), anyString())).thenReturn(false);
+        JsonNode existingData = communityDetails("c1", "org1", "Name", nonArrayModerators);
+        when(communityEngagementRepository.findByCommunityIdAndIsActive("c1", true))
+            .thenReturn(Optional.of(entityWithData("c1", existingData)));
+
+        ApiResponse response = service.publish(details, "token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(notificationService, never()).sendNotification(anyList(), anyString(), anyString(), anyString());
     }
 
     @Test

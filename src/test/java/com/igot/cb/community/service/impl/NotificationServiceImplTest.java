@@ -9,6 +9,9 @@ import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -19,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -26,7 +30,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -96,21 +99,10 @@ class NotificationServiceImplTest {
             new ArrayList<>(List.of("mod1")), "community1", "sender1", "My Community"));
     }
 
-    @Test
-    void sendNotificationSkipsRecipientWithBlankProfileDetails() {
+    @ParameterizedTest(name = "sendNotificationSkipsRecipientWhenModeratorProfileIs_{0}")
+    @MethodSource("skippedModeratorProfiles")
+    void sendNotificationSkipsRecipientForInvalidModeratorProfile(String scenario, String moderatorProfile) {
         String senderProfile = "{\"personalDetails\":{\"primaryEmail\":\"sender@example.com\"}}";
-        stubUserRecords(Arrays.asList(
-            userRecord("sender1", "Sender", senderProfile),
-            userRecord("mod1", "Moderator", "   ")));
-
-        assertDoesNotThrow(() -> notificationService.sendNotification(
-            new ArrayList<>(List.of("mod1")), "community1", "sender1", "My Community"));
-    }
-
-    @Test
-    void sendNotificationSkipsRecipientWhenPersonalDetailsMissing() {
-        String senderProfile = "{\"personalDetails\":{\"primaryEmail\":\"sender@example.com\"}}";
-        String moderatorProfile = "{\"otherField\":\"value\"}";
         stubUserRecords(Arrays.asList(
             userRecord("sender1", "Sender", senderProfile),
             userRecord("mod1", "Moderator", moderatorProfile)));
@@ -119,24 +111,21 @@ class NotificationServiceImplTest {
             new ArrayList<>(List.of("mod1")), "community1", "sender1", "My Community"));
     }
 
-    @Test
-    void sendNotificationSkipsRecipientWhenPersonalDetailsNotAMap() {
-        String senderProfile = "{\"personalDetails\":{\"primaryEmail\":\"sender@example.com\"}}";
-        String moderatorProfile = "{\"personalDetails\":\"not-a-map\"}";
-        stubUserRecords(Arrays.asList(
-            userRecord("sender1", "Sender", senderProfile),
-            userRecord("mod1", "Moderator", moderatorProfile)));
-
-        assertDoesNotThrow(() -> notificationService.sendNotification(
-            new ArrayList<>(List.of("mod1")), "community1", "sender1", "My Community"));
+    private static Stream<Arguments> skippedModeratorProfiles() {
+        return Stream.of(
+            Arguments.of("blank", "   "),
+            Arguments.of("missingPersonalDetails", "{\"otherField\":\"value\"}"),
+            Arguments.of("personalDetailsNotAMap", "{\"personalDetails\":\"not-a-map\"}")
+        );
     }
 
     @Test
     void sendNotificationThrowsCustomExceptionForInvalidProfileJson() {
         stubUserRecords(List.of(userRecord("sender1", "Sender", "not-valid-json")));
 
+        List<String> moderatorIds = new ArrayList<>();
         assertThrows(CustomException.class, () -> notificationService.sendNotification(
-            new ArrayList<>(), "community1", "sender1", "My Community"));
+            moderatorIds, "community1", "sender1", "My Community"));
     }
 
     @Test
@@ -144,8 +133,9 @@ class NotificationServiceImplTest {
         String moderatorProfile = "{\"personalDetails\":{\"primaryEmail\":\"mod@example.com\"}}";
         stubUserRecords(List.of(userRecord("mod1", "Moderator", moderatorProfile)));
 
+        List<String> moderatorIds = new ArrayList<>(List.of("mod1"));
         assertThrows(NullPointerException.class, () -> notificationService.sendNotification(
-            new ArrayList<>(List.of("mod1")), "community1", "sender1", "My Community"));
+            moderatorIds, "community1", "sender1", "My Community"));
     }
 
     @Test

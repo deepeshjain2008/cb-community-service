@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,7 +30,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -74,8 +74,7 @@ class CacheServiceTest {
     void putCacheHandlesExceptionGracefully() {
         when(redisTemplate.opsForValue()).thenThrow(new RuntimeException("redis down"));
 
-        assertTrue(true, "should not throw");
-        cacheService.putCache("key1", Map.of("a", "b"));
+        assertDoesNotThrow(() -> cacheService.putCache("key1", Map.of("a", "b")));
     }
 
     @Test
@@ -140,7 +139,9 @@ class CacheServiceTest {
     void addUsersToHashHandlesException() {
         when(redisTemplate.<String, String>opsForHash()).thenThrow(new RuntimeException("redis down"));
 
-        cacheService.addUsersToHash("hashKey", new HashSet<>(List.of("u1")));
+        assertDoesNotThrow(() -> cacheService.addUsersToHash("hashKey", new HashSet<>(List.of("u1"))));
+
+        verify(redisTemplate, never()).expire(anyString(), anyLong(), any(TimeUnit.class));
     }
 
     @Test
@@ -245,7 +246,7 @@ class CacheServiceTest {
     void deleteUserFromHashHandlesException() {
         when(redisTemplate.<String, String>opsForHash()).thenThrow(new RuntimeException("redis down"));
 
-        cacheService.deleteUserFromHash("hashKey", "field1");
+        assertDoesNotThrow(() -> cacheService.deleteUserFromHash("hashKey", "field1"));
     }
 
     @Test

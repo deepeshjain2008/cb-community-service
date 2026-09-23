@@ -244,14 +244,16 @@ public class Base64Util {
         encoder.output = new byte[outputLen];
         encoder.process(input, offset, len, true);
 
-        assert encoder.op == outputLen;
+        if (encoder.op != outputLen) {
+            throw new IllegalStateException("Base64 encoder produced an unexpected output length");
+        }
 
         return encoder.output;
     }
 
     /* package */ abstract static class Coder {
-        public byte[] output;
-        public int op;
+        byte[] output;
+        int op;
 
         /**
          * Encode/decode another block of input data.  this.output is
@@ -442,8 +444,9 @@ public class Base64Util {
                             localValue = (localValue << 6) | d;
                             ++localState;
                         } else if (d == EQUALS) {
-                            // Emit the last (partial) output tuple;
-                            // expect exactly one more padding character.
+                            // Only two data characters were read for this tuple, so only one
+                            // output byte is produced; exactly one more padding character
+                            // is expected next.
                             output[op++] = (byte) (localValue >> 4);
                             localState = 4;
                         } else if (d != SKIP) {
@@ -462,8 +465,9 @@ public class Base64Util {
                             op += 3;
                             localState = 0;
                         } else if (d == EQUALS) {
-                            // Emit the last (partial) output tuple;
-                            // expect no further data or padding characters.
+                            // Three data characters were read for this tuple, producing two
+                            // output bytes; no further data or padding characters are
+                            // expected after this.
                             output[op + 1] = (byte) (localValue >> 2);
                             output[op] = (byte) (localValue >> 10);
                             op += 2;
@@ -724,8 +728,12 @@ public class Base64Util {
                     output[op++] = '\n';
                 }
 
-                assert tailLen == 0;
-                assert p == len;
+                if (tailLen != 0) {
+                    throw new IllegalStateException("Base64 encoder finished with a non-empty tail");
+                }
+                if (p != len) {
+                    throw new IllegalStateException("Base64 encoder did not consume all input");
+                }
             } else {
                 // Save the leftovers in tail to be consumed on the next
                 // call to encodeInternal.

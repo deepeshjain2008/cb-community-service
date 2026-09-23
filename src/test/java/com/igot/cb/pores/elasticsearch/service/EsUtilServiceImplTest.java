@@ -681,10 +681,10 @@ class EsUtilServiceImplTest {
 
     @Test
     void isDuplicateCommunityReturnsFalseWithoutExcludeId() {
-        // A null/blank excludeCommunityId makes the mustNot(...) lambda return null,
-        // and BoolQuery.Builder.mustNot(fn) calls fn.apply(...).build() unconditionally,
-        // so this always NPEs internally before reaching Elasticsearch; the method's
-        // own catch(Exception) swallows it and returns false.
+        // A blank exclude-community-id triggers a latent bug: the must-not query
+        // builder always dereferences a null result internally before Elasticsearch
+        // is ever reached, and the surrounding exception handler swallows it and
+        // returns false.
         assertFalse(service.isDuplicateCommunity("org1", "Test Community", null));
     }
 
@@ -722,9 +722,9 @@ class EsUtilServiceImplTest {
 
     @Test
     void doesCommunityNameExistForPublishReturnsFalseWithoutCommunityId() {
-        // Same latent bug as isDuplicateCommunity: a null communityId makes the
-        // mustNot(...) lambda return null, which NPEs inside BoolQuery.Builder
-        // before Elasticsearch is ever called; the catch(Exception) returns false.
+        // Same latent bug as isDuplicateCommunity: a blank community id trips the
+        // same must-not query builder defect before Elasticsearch is ever called,
+        // and the surrounding exception handler returns false.
         assertFalse(service.doesCommunityNameExistForPublish("Test Community", null));
     }
 
@@ -741,10 +741,10 @@ class EsUtilServiceImplTest {
     @Test
     void popularCommunitiesReturnsResponseOnSuccess() throws IOException {
         SearchRequest searchRequest = new SearchRequest.Builder().index(COMMUNITY_INDEX).build();
-        when(elasticsearchClient.search(eq(searchRequest), eq(Object.class)))
+        when(elasticsearchClient.search(searchRequest, Object.class))
             .thenReturn(buildSearchResponse(0, List.of(), null));
 
-        SearchResponse response = service.popularCommunities(searchRequest, RequestOptions.DEFAULT);
+        SearchResponse<Object> response = service.popularCommunities(searchRequest, RequestOptions.DEFAULT);
 
         assertNotNull(response);
     }
@@ -752,10 +752,10 @@ class EsUtilServiceImplTest {
     @Test
     void popularCommunitiesReturnsNullOnException() throws IOException {
         SearchRequest searchRequest = new SearchRequest.Builder().index(COMMUNITY_INDEX).build();
-        when(elasticsearchClient.search(eq(searchRequest), eq(Object.class)))
+        when(elasticsearchClient.search(searchRequest, Object.class))
             .thenThrow(new RuntimeException("es down"));
 
-        SearchResponse response = service.popularCommunities(searchRequest, RequestOptions.DEFAULT);
+        SearchResponse<Object> response = service.popularCommunities(searchRequest, RequestOptions.DEFAULT);
 
         assertNull(response);
     }

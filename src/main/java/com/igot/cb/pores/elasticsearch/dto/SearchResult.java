@@ -16,8 +16,8 @@ import java.util.Map;
 @NoArgsConstructor
 public class SearchResult implements Serializable {
 
-  private JsonNode data;
+  private transient JsonNode data;
   private Map<String, List<FacetDTO>> facets;
   private long totalCount;
-  List<Map<String, Object>> additionalInfo;
+  transient List<Map<String, Object>> additionalInfo;
 }

@@ -12,29 +12,18 @@ import com.igot.cb.pores.util.PropertiesCache;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 
 import java.lang.reflect.Field;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class CassandraConnectionManagerImplTest {
 
@@ -214,31 +203,22 @@ class CassandraConnectionManagerImplTest {
         assertThrows(CustomException.class, () -> manager.getSession("ks4"));
     }
 
-    @Test
-    void getConsistencyLevelReturnsLocalOneWhenBlank() throws Exception {
-        setProperty(Constants.SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL, "");
+    @ParameterizedTest(name = "getConsistencyLevelResolves_{0}")
+    @MethodSource("consistencyLevelScenarios")
+    void getConsistencyLevelResolvesConfiguredValue(String scenario, String configuredValue, String expected) throws Exception {
+        setProperty(Constants.SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL, configuredValue);
 
         Object level = invokeGetConsistencyLevel();
 
-        assertEquals("LOCAL_ONE", level.toString());
+        assertEquals(expected, level.toString());
     }
 
-    @Test
-    void getConsistencyLevelReturnsConfiguredLevel() throws Exception {
-        setProperty(Constants.SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL, "quorum");
-
-        Object level = invokeGetConsistencyLevel();
-
-        assertEquals("QUORUM", level.toString());
-    }
-
-    @Test
-    void getConsistencyLevelFallsBackToLocalOneForInvalidValue() throws Exception {
-        setProperty(Constants.SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL, "not-a-real-level");
-
-        Object level = invokeGetConsistencyLevel();
-
-        assertEquals("LOCAL_ONE", level.toString());
+    private static Stream<Arguments> consistencyLevelScenarios() {
+        return Stream.of(
+            Arguments.of("blank", "", "LOCAL_ONE"),
+            Arguments.of("configuredLevel", "quorum", "QUORUM"),
+            Arguments.of("invalidValue", "not-a-real-level", "LOCAL_ONE")
+        );
     }
 
     private Object invokeGetConsistencyLevel() throws Exception {

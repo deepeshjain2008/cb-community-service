@@ -38,7 +38,7 @@ public class CommunityEntity {
 
     private Timestamp updatedOn;
 
-    private String created_by;
+    private String createdBy;
 
     @Column(name="is_active")
     private boolean isActive;

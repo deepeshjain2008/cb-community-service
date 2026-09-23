@@ -5,6 +5,7 @@ import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpHost;
@@ -55,9 +56,7 @@ public class EsConfig  {
         String[] splitedHost = userESClientHost.split(",");
         String[] splitedPort = userESClientPort.split(",");
 
-        for (String val : splitedHost) {
-            hosts.add(val);
-        }
+        Collections.addAll(hosts, splitedHost);
 
         for (String val : splitedPort) {
             ports.add(Integer.parseInt(val));
@@ -96,7 +95,6 @@ public class EsConfig  {
                 new org.apache.http.message.BasicHeader("X-Elastic-Product", "Elasticsearch")});
         RestClient restClient = builder.build();
         ElasticsearchTransport elasticsearchTransport = new RestClientTransport(restClient, new JacksonJsonpMapper());
-        ElasticsearchClient client = new ElasticsearchClient(elasticsearchTransport);
-        return client;
+        return new ElasticsearchClient(elasticsearchTransport);
     }
 }

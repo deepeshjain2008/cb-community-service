@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -135,7 +136,7 @@ class OutboundRequestHandlerServiceImplTest {
         service = newService();
         Map<String, Object> expected = new HashMap<>();
         expected.put("status", "ok");
-        when(restTemplate.getForObject(eq("http://test.com"), eq(Map.class))).thenReturn(expected);
+        when(restTemplate.getForObject("http://test.com", Map.class)).thenReturn(expected);
 
         Object result = service.fetchResult("http://test.com");
 
@@ -188,7 +189,7 @@ class OutboundRequestHandlerServiceImplTest {
         headers.put("X-Test", "value");
         Map<String, Object> expected = new HashMap<>();
         expected.put("status", "ok");
-        when(restTemplate.exchange(eq("http://test.com"), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+        when(restTemplate.exchange(eq("http://test.com"), eq(HttpMethod.GET), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
             .thenReturn(ResponseEntity.ok(expected));
 
         Object result = service.fetchUsingGetWithHeaders("http://test.com", headers);
@@ -201,7 +202,7 @@ class OutboundRequestHandlerServiceImplTest {
         service = newService();
         Map<String, Object> expected = new HashMap<>();
         expected.put("status", "ok");
-        when(restTemplate.exchange(eq("http://test.com"), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+        when(restTemplate.exchange(eq("http://test.com"), eq(HttpMethod.GET), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
             .thenReturn(ResponseEntity.ok(expected));
 
         Object result = service.fetchUsingGetWithHeaders("http://test.com", null);
@@ -212,7 +213,7 @@ class OutboundRequestHandlerServiceImplTest {
     @Test
     void fetchUsingGetWithHeadersHandlesException() {
         service = newService();
-        when(restTemplate.exchange(any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+        when(restTemplate.exchange(any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
             .thenThrow(new IllegalStateException("boom"));
 
         Object result = service.fetchUsingGetWithHeaders("http://test.com", null);
@@ -532,6 +533,8 @@ class OutboundRequestHandlerServiceImplTest {
             when(restTemplate.getForObject(any(String.class), eq(Map.class))).thenReturn(expected);
             when(restTemplate.exchange(any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
                 .thenReturn(ResponseEntity.ok(expected));
+            when(restTemplate.exchange(any(String.class), eq(HttpMethod.GET), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class))).thenReturn(ResponseEntity.ok(expected));
             when(restTemplate.postForObject(any(String.class), any(HttpEntity.class), eq(String.class)))
                 .thenReturn("response-body");
 

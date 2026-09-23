@@ -8,7 +8,6 @@ import co.elastic.clients.elasticsearch._types.aggregations.StringTermsAggregate
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
-import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -206,8 +205,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 return response;
             }
             boolean isCommunityCreationAllowed = false; // Default value
-            if (communityDetails.has(Constants.CommunityCreationAllowed)) {
-                isCommunityCreationAllowed = communityDetails.get(Constants.CommunityCreationAllowed).asBoolean();
+            if (communityDetails.has(Constants.COMMUNITY_CREATION_ALLOWED)) {
+                isCommunityCreationAllowed = communityDetails.get(Constants.COMMUNITY_CREATION_ALLOWED).asBoolean();
             }
 
             if (!isCommunityCreationAllowed && Boolean.TRUE.equals(esUtilService.doesCommunityNameExist(communityDetails.get(Constants.COMMUNITY_NAME).asText()))) {
@@ -253,7 +252,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             Timestamp currentTimestamp = new Timestamp(System.currentTimeMillis());
             communityEngagementEntity.setCreatedOn(currentTimestamp);
             communityEngagementEntity.setUpdatedOn(currentTimestamp);
-            communityEngagementEntity.setCreated_by(userId);
+            communityEngagementEntity.setCreatedBy(userId);
             communityEngagementEntity.setActive(true);
             CommunityEntity saveJsonEntity = communityEngagementRepository.save(communityEngagementEntity);
             if (!saveJsonEntity.getData().isNull()) {
@@ -507,14 +506,14 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
                 // Update the main JsonNode with the value from the update JsonNode
                 ((ObjectNode) dataNode).set(fieldName, communityDetails.get(fieldName));
             } else {
-                ((ObjectNode) dataNode).put(fieldName, communityDetails.get(fieldName));
+                ((ObjectNode) dataNode).set(fieldName, communityDetails.get(fieldName));
             }
         }
     }
 
     private boolean isCommunityNameConflictOnUpdate(JsonNode communityDetails, JsonNode dataNode) {
-        boolean isCommunityCreationAllowed = communityDetails.has(Constants.CommunityCreationAllowed)
-            && communityDetails.get(Constants.CommunityCreationAllowed).asBoolean();
+        boolean isCommunityCreationAllowed = communityDetails.has(Constants.COMMUNITY_CREATION_ALLOWED)
+            && communityDetails.get(Constants.COMMUNITY_CREATION_ALLOWED).asBoolean();
         return !isCommunityCreationAllowed && Boolean.TRUE.equals(esUtilService.doesCommunityNameExistForPublish(
             dataNode.get(Constants.COMMUNITY_NAME).asText(),
             dataNode.get(Constants.COMMUNITY_ID).asText()));
@@ -657,7 +656,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             }
             Map<String, Object> propertyMap = new HashMap<>();
             propertyMap.put(Constants.USER_ID, userId);
-            List<String> fields = new ArrayList();
+            List<String> fields = new ArrayList<>();
             fields.add(Constants.COMMUNITY_ID);
             fields.add(Constants.STATUS);
             List<Map<String, Object>> userCommunityDetails = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
@@ -849,7 +848,7 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
         List<String> paginatedUserIds = new ArrayList<>();
         Map<String, Object> propertyMap = new HashMap<>();
         propertyMap.put(Constants.COMMUNITY_ID, communityId);
-        List<String> fields = new ArrayList();
+        List<String> fields = new ArrayList<>();
         fields.add(Constants.USER_ID);
         fields.add(Constants.STATUS);
         List<Map<String, Object>> userCommunityDetails = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
@@ -1563,13 +1562,13 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
 
 // Execute the search request
             // Execute the search request
-            SearchResponse<Map<String, Object>> searchResponse = esUtilService.popularCommunities(searchRequest,
+            SearchResponse<Object> searchResponse = esUtilService.popularCommunities(searchRequest,
                 RequestOptions.DEFAULT);
 
 // Process search hits
             List<Map<String, Object>> documents = searchResponse.hits().hits().stream()
                 .filter(hit -> hit.source() != null)
-                .map(Hit::source)
+                .map(hit -> (Map<String, Object>) hit.source())
                 .toList();
             response.getResult().put(Constants.DATA, documents);
 
@@ -1599,9 +1598,8 @@ public class CommunityManagementServiceImpl implements CommunityManagementServic
             return response;
 
         } catch (Exception e) {
-            logger.error("Error while executing Elasticsearch query: {}", e.getMessage(), e);
             throw new CustomException("Error while processing", e.getMessage(),
-                HttpStatus.INTERNAL_SERVER_ERROR);
+                HttpStatus.INTERNAL_SERVER_ERROR, e);
         }
     }
 

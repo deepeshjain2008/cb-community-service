@@ -115,9 +115,8 @@ class Base64UtilCoderTest {
 
     @Test
     void encoderFlushesPendingOneByteTailOnFinishWithNoNewInput() {
-        // Leaves a 1-byte tail unconsumed by the leading switch(tailLen) block (no new
-        // input to combine it with), forcing the finish-block's own tail-aware ternary
-        // (tailLen > 0 ? tail[...] : input[...]) to take its true branch.
+        // No new input arrives to combine with the pending 1-byte tail, so the finish
+        // step must pull that leftover byte from the tail buffer itself.
         Base64Util.Encoder encoder = new Base64Util.Encoder(Base64Util.NO_WRAP | Base64Util.NO_PADDING, new byte[10]);
         byte[] part1 = new byte[]{65};
         byte[] empty = new byte[0];

@@ -35,7 +35,6 @@ import scala.Option;
 
 import java.io.File;
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -362,7 +361,7 @@ class CommunityManagementServiceImplTest {
     @Test
     void createSkipsNameExistCheckWhenCommunityCreationAllowed() {
         ObjectNode details = communityDetails();
-        details.put(Constants.CommunityCreationAllowed, true);
+        details.put(Constants.COMMUNITY_CREATION_ALLOWED, true);
         when(categoryRepository.findByCategoryIdAndIsActive(1, true)).thenReturn(category());
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
             eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_USER), any(Map.class), anyList(), eq(2)))
@@ -387,7 +386,8 @@ class CommunityManagementServiceImplTest {
         when(categoryRepository.findByCategoryIdAndIsActive(1, true))
             .thenThrow(new RuntimeException("db down"));
 
-        assertThrows(CustomException.class, () -> service.create(communityDetails(), TOKEN));
+        ObjectNode details = communityDetails();
+        assertThrows(CustomException.class, () -> service.create(details, TOKEN));
     }
 
     // ---- read(communityId, authToken) ----
@@ -407,7 +407,7 @@ class CommunityManagementServiceImplTest {
     }
 
     @Test
-    void readReturnsFromCacheWhenPresent() throws Exception {
+    void readReturnsFromCacheWhenPresent() {
         when(cacheService.getCache(COMMUNITY_ID)).thenReturn("{\"communityName\":\"Cached\"}");
 
         ApiResponse response = service.read(COMMUNITY_ID, TOKEN);

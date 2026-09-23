@@ -129,10 +129,9 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
             }
             return sessionWithKeyspaces;
         } catch (Exception e) {
-            logger.error("Error while creating Cassandra connection", e);
             throw new CustomException(
                     Constants.ERROR,
-                    e.getMessage(),
+                    "Error while creating Cassandra connection: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -141,10 +140,9 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
         try {
             session = createCassandraConnectionWithKeySpaces(null);
         } catch (Exception e) {
-            logger.error("Error while creating Cassandra connection", e);
             throw new CustomException(
                     Constants.ERROR,
-                    e.getMessage(),
+                    "Error while creating Cassandra connection: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

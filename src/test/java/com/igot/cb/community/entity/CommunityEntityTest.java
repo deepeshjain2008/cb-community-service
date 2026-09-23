@@ -24,7 +24,7 @@ class CommunityEntityTest {
         assertEquals(data, entity.getData());
         assertEquals(createdOn, entity.getCreatedOn());
         assertEquals(updatedOn, entity.getUpdatedOn());
-        assertEquals("creator-1", entity.getCreated_by());
+        assertEquals("creator-1", entity.getCreatedBy());
         assertTrue(entity.isActive());
     }
 

@@ -30,7 +30,7 @@ public interface EsUtilService {
   SearchResult fetchTopCommunitiesForTopics(List<Integer> topicIds, String indexName) throws IOException;
 
 
-  SearchResponse popularCommunities(SearchRequest searchRequest, RequestOptions aDefault);
+  SearchResponse<Object> popularCommunities(SearchRequest searchRequest, RequestOptions aDefault);
 
   Boolean updateUserIndex (String userId, String communityId, Boolean append);
 

@@ -37,7 +37,7 @@ public class RedisConfig {
   @Value("${spring.redis.data.port}")
   private int redisDataPort;
 
-  private final long redisTimeout = 60000;
+  private static final long redisTimeout = 60000;
 
   @Bean(name = Constants.REDIS_CONNECTION_FACTORY)
   public RedisConnectionFactory redisConnectionFactory() {
